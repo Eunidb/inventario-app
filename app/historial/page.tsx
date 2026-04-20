@@ -1,257 +1,354 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { 
-  History, ArrowUpRight, ArrowDownLeft, ClipboardList, 
-  RotateCcw, Settings, Trash2, Calendar, User, 
-  Search, AlertCircle, ChevronDown, Menu 
-} from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import Sidebar from '@/components/sidebar';
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import type { HistorialMovimiento, TipoMovimientoEnum } from "@/lib/supabase";
 
-// --- Interfaces ---
-interface Movimiento {
-  id: number;
-  tipo_movimiento: 'entrada' | 'salida' | 'prestamo' | 'devolucion' | 'ajuste' | 'baja';
-  cantidad: number;
-  stock_antes: number;
-  stock_despues: number;
-  fecha: string;
-  observaciones: string;
-  inventario: { nombre: string; clave: string };
-  usuarios: { nombre_completo: string };
-  dept_origen: { nombre: string } | null;
-  dept_destino: { nombre: string } | null;
-  prestamos?: {
-    fecha_devolucion: string;
-    estado: string;
-  };
-}
-
-const ITEMS_PER_PAGE = 10;
-
-const HistorialPage = () => {
-  const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("todos");
-  const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-
-  useEffect(() => {
-    fetchHistorial(0, true);
-  }, []);
-
-  const fetchHistorial = async (currentPage: number, isInitial: boolean = false) => {
-    try {
-      if (isInitial) setLoading(true);
-      else setLoadingMore(true);
-
-      const from = currentPage * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-
-      const { data, error } = await supabase
-        .from('historial_inventario')
-        .select(`
-          *,
-          inventario(nombre, clave),
-          usuarios(nombre_completo),
-          dept_origen:departamentos!departamento_origen(nombre),
-          dept_destino:departamentos!departamento_destino(nombre),
-          prestamos(fecha_devolucion, estado)
-        `)
-        .order('fecha', { ascending: false })
-        .range(from, to);
-
-      if (error) throw error;
-
-      if (data) {
-        setMovimientos(prev => isInitial ? data : [...prev, ...data]);
-        setHasMore(data.length === ITEMS_PER_PAGE);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
-
-  const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchHistorial(nextPage);
-  };
-
-  const filteredMovimientos = movimientos.filter(m => {
-    const matchesSearch = 
-      m.inventario.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.usuarios.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (filterType === "atrasados") {
-      const esPrestamoActivo = m.tipo_movimiento === 'prestamo';
-      const fechaVencida = m.prestamos?.fecha_devolucion ? new Date(m.prestamos.fecha_devolucion) < new Date() : false;
-      const noDevuelto = m.prestamos?.estado !== 'devuelto';
-      return matchesSearch && esPrestamoActivo && fechaVencida && noDevuelto;
-    }
-
-    const matchesTab = filterType === "todos" ? true : m.tipo_movimiento === filterType;
-    return matchesSearch && matchesTab;
-  });
-
-  const TabButton = ({ id, label, icon: Icon, color = "blue" }: any) => (
-    <button
-      onClick={() => { setFilterType(id); setPage(0); }}
-      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs md:text-sm font-bold transition-all border whitespace-nowrap
-        ${filterType === id 
-          ? `bg-${color}-600 text-white border-${color}-600 shadow-lg shadow-${color}-100` 
-          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-        }`}
-    >
-      <Icon size={16} />
-      {label}
-    </button>
-  );
-
-  return (
-    // Contenedor principal con Flex para el Sidebar
-    <div className="flex min-h-screen bg-[#f8fafc]">
-      
-      {/* Sidebar fijo en escritorio, oculto o toggle en móvil */}
-      <Sidebar />
-
-      {/* Contenido Principal con margen adaptable */}
-      <main className="flex-1 w-full lg:ml-64 transition-all duration-300">
-        <div className="p-4 md:p-8 lg:p-12">
-          <div className="max-w-7xl mx-auto">
-            
-            {/* Header Adaptable */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                  <span className="p-2 md:p-3 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-200">
-                    <History size={24} strokeWidth={3} />
-                  </span>
-                  Historial General
-                </h1>
-                <p className="text-slate-500 font-medium mt-2 text-sm md:text-base">Auditoría de movimientos y control de flujo.</p>
-              </div>
-
-              {/* Barra de búsqueda responsive */}
-              <div className="relative group w-full lg:w-96">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" size={18} />
-                <input 
-                  type="text"
-                  placeholder="Buscar equipo o responsable..."
-                  className="pl-12 pr-4 py-3 md:py-3.5 bg-white border-2 border-slate-100 rounded-2xl shadow-sm focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none w-full transition-all font-medium text-sm"
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Filtros con Scroll Horizontal en Móvil */}
-            <div className="flex overflow-x-auto pb-4 mb-8 gap-3 no-scrollbar touch-pan-x">
-              <TabButton id="todos" label="Todos" icon={History} />
-              <TabButton id="prestamo" label="Préstamos" icon={ClipboardList} />
-              <TabButton id="atrasados" label="Atrasados" icon={AlertCircle} color="red" />
-              <TabButton id="devolucion" label="Devoluciones" icon={RotateCcw} />
-              <TabButton id="entrada" label="Entradas" icon={ArrowDownLeft} />
-              <TabButton id="salida" label="Salidas" icon={ArrowUpRight} />
-            </div>
-
-            {/* Contenedor de Tabla con Scroll */}
-            <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-              <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="bg-slate-50/50 border-b border-slate-100">
-                      <th className="px-6 md:px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Detalle</th>
-                      <th className="px-6 md:px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Artículo</th>
-                      <th className="px-6 md:px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Cantidad</th>
-                      <th className="px-6 md:px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Ubicación</th>
-                      <th className="px-6 md:px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-[0.1em]">Responsable</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {loading ? (
-                      <tr><td colSpan={5} className="py-20 text-center font-medium text-slate-400">Cargando...</td></tr>
-                    ) : filteredMovimientos.length === 0 ? (
-                      <tr><td colSpan={5} className="py-20 text-center font-medium text-slate-400">Sin resultados.</td></tr>
-                    ) : filteredMovimientos.map((m) => {
-                      const isAtrasado = m.tipo_movimiento === 'prestamo' && 
-                                        m.prestamos?.fecha_devolucion && 
-                                        new Date(m.prestamos.fecha_devolucion) < new Date() &&
-                                        m.prestamos?.estado !== 'devuelto';
-
-                      return (
-                        <tr key={m.id} className="hover:bg-blue-50/40 transition-all group">
-                          <td className="px-6 md:px-8 py-4 md:py-6">
-                            <div className="flex items-center gap-3 md:gap-4">
-                              <div className={`p-2.5 rounded-xl ${isAtrasado ? 'bg-red-100 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                                {isAtrasado ? <AlertCircle size={18} /> : <History size={18} />}
-                              </div>
-                              <div>
-                                <p className={`text-[12px] md:text-sm font-bold uppercase tracking-tight ${isAtrasado ? 'text-red-600' : 'text-slate-700'}`}>
-                                  {isAtrasado ? 'Atrasado' : m.tipo_movimiento}
-                                </p>
-                                <p className="text-[10px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-                                  <Calendar size={10} /> {new Date(m.fecha).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 md:px-8 py-4 md:py-6">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-800">{m.inventario.nombre}</span>
-                              <span className="text-[10px] font-black text-blue-400 mt-0.5">{m.inventario.clave}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 md:px-8 py-4 md:py-6">
-                            <div className="flex items-center gap-3">
-                              <span className="text-base md:text-lg font-black text-slate-700">{m.cantidad}</span>
-                              <div className="h-6 w-[1px] bg-slate-100"></div>
-                              <span className="text-[10px] font-bold text-slate-400">{m.stock_despues} total</span>
-                            </div>
-                          </td>
-                          <td className="px-6 md:px-8 py-4 md:py-6">
-                            <div className="text-[11px] space-y-1">
-                              {m.dept_origen && <p className="text-slate-500">De: {m.dept_origen.nombre}</p>}
-                              {m.dept_destino && <p className="text-slate-800 font-bold">A: {m.dept_destino.nombre}</p>}
-                            </div>
-                          </td>
-                          <td className="px-6 md:px-8 py-4 md:py-6">
-                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full w-fit border border-slate-100">
-                              <User size={12} className="text-blue-500" strokeWidth={3} />
-                              <span className="text-[11px] font-bold text-slate-700 truncate max-w-[100px]">{m.usuarios.nombre_completo}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Footer de la tabla / Cargar más */}
-              {hasMore && (
-                <div className="p-6 bg-slate-50/50 flex justify-center border-t border-slate-100">
-                  <button 
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                  >
-                    {loadingMore ? 'Cargando...' : 'Ver más historial'}
-                    <ChevronDown size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+// ---------------------------------------------------------------------------
+// Configuración visual por tipo de movimiento
+// ---------------------------------------------------------------------------
+const TIPO_MOV: Record<TipoMovimientoEnum, { label: string; cls: string; icon: string }> = {
+  entrada:    { label: "Entrada",    cls: "bg-emerald-100 text-emerald-700", icon: "↓" },
+  salida:     { label: "Salida",     cls: "bg-orange-100 text-orange-700",   icon: "↑" },
+  prestamo:   { label: "Préstamo",   cls: "bg-blue-100 text-blue-700",       icon: "→" },
+  devolucion: { label: "Devolución", cls: "bg-teal-100 text-teal-700",       icon: "↩" },
+  ajuste:     { label: "Ajuste",     cls: "bg-purple-100 text-purple-700",   icon: "≈" },
+  baja:       { label: "Baja",       cls: "bg-red-100 text-red-700",         icon: "✕" },
 };
 
-export default HistorialPage;
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
+export default function HistorialPage() {
+  const [movimientos, setMovimientos] = useState<HistorialMovimiento[]>([]);
+  const [isLoading, setIsLoading]     = useState(true);
+  const [total, setTotal]             = useState(0);
+
+  // Filtros
+  const [search, setSearch]         = useState("");
+  const [tipoFilter, setTipoFilter] = useState<string>("");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+
+  // Paginación
+  const [page, setPage] = useState(1);
+  const PER_PAGE = 20;
+
+  // -------------------------------------------------------------------------
+  // Cargar historial con todos los filtros aplicados
+  // -------------------------------------------------------------------------
+  const loadHistorial = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      let query = supabase
+        .from("historial_inventario")
+        .select(`
+          *,
+          inventario (id, nombre, clave),
+          usuarios (nombre_completo)
+        `, { count: "exact" })
+        .order("fecha", { ascending: false })
+        .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
+
+      // Filtro por tipo de movimiento
+      if (tipoFilter) {
+        query = query.eq("tipo_movimiento", tipoFilter);
+      }
+
+      // Filtro por rango de fechas
+      if (fechaDesde) {
+        query = query.gte("fecha", new Date(fechaDesde).toISOString());
+      }
+      if (fechaHasta) {
+        const hasta = new Date(fechaHasta);
+        hasta.setHours(23, 59, 59, 999);
+        query = query.lte("fecha", hasta.toISOString());
+      }
+
+      const { data, count, error } = await query;
+      if (error) throw error;
+
+      let result = (data as HistorialMovimiento[]) ?? [];
+
+      // Filtro por texto (nombre de artículo o usuario) — en cliente
+      if (search.trim()) {
+        const s = search.toLowerCase();
+        result = result.filter(
+          (m) =>
+            (m.inventario as any)?.nombre?.toLowerCase().includes(s) ||
+            (m.inventario as any)?.clave?.toLowerCase().includes(s) ||
+            (m.usuarios as any)?.nombre_completo?.toLowerCase().includes(s)
+        );
+      }
+
+      setMovimientos(result);
+      setTotal(count ?? 0);
+    } catch (err) {
+      console.error("Error cargando historial:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, tipoFilter, fechaDesde, fechaHasta, page]);
+
+  // Debounce para la búsqueda de texto
+  useEffect(() => {
+    const t = setTimeout(loadHistorial, 300);
+    return () => clearTimeout(t);
+  }, [loadHistorial]);
+
+  // -------------------------------------------------------------------------
+  // Limpiar todos los filtros
+  // -------------------------------------------------------------------------
+  const limpiarFiltros = () => {
+    setSearch("");
+    setTipoFilter("");
+    setFechaDesde("");
+    setFechaHasta("");
+    setPage(1);
+  };
+
+  const hayFiltros = search || tipoFilter || fechaDesde || fechaHasta;
+
+  // -------------------------------------------------------------------------
+  // Formatear fecha y hora
+  // -------------------------------------------------------------------------
+  const fmtFecha = (f: string) =>
+    new Date(f).toLocaleString("es-MX", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+
+  return (
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Encabezado */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Historial de movimientos</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Registro completo de entradas, salidas, préstamos y ajustes de inventario
+        </p>
+      </div>
+
+      {/* Panel de filtros */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-5">
+        <div className="flex flex-col gap-3">
+          {/* Primera fila: búsqueda + tipo */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                placeholder="Buscar por artículo, clave o usuario..."
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <select
+              value={tipoFilter}
+              onChange={(e) => { setTipoFilter(e.target.value); setPage(1); }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+            >
+              <option value="">Todos los tipos</option>
+              {Object.entries(TIPO_MOV).map(([val, { label }]) => (
+                <option key={val} value={val}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Segunda fila: fechas + limpiar */}
+          <div className="flex flex-col sm:flex-row gap-3 items-center">
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-xs text-gray-500 whitespace-nowrap">Desde:</label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => { setFechaDesde(e.target.value); setPage(1); }}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <label className="text-xs text-gray-500 whitespace-nowrap">Hasta:</label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => { setFechaHasta(e.target.value); setPage(1); }}
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            {hayFiltros && (
+              <button
+                onClick={limpiarFiltros}
+                className="text-sm text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-2 whitespace-nowrap transition-colors"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Chips de filtros activos */}
+        {hayFiltros && (
+          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+            {tipoFilter && (
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${TIPO_MOV[tipoFilter as TipoMovimientoEnum]?.cls}`}>
+                Tipo: {TIPO_MOV[tipoFilter as TipoMovimientoEnum]?.label}
+              </span>
+            )}
+            {fechaDesde && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                Desde: {fechaDesde}
+              </span>
+            )}
+            {fechaHasta && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                Hasta: {fechaHasta}
+              </span>
+            )}
+            {search && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                Búsqueda: "{search}"
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Tabla de historial */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Contador */}
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-xs text-gray-400">
+            {isLoading ? "Cargando..." : `${total} movimiento(s) encontrado(s)`}
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Artículo</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Usuario</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cantidad</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Stock antes</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Stock después</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Fecha</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <td key={j} className="px-5 py-4">
+                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : movimientos.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
+                    No se encontraron movimientos con los filtros aplicados
+                  </td>
+                </tr>
+              ) : (
+                movimientos.map((mov) => {
+                  const tipo = TIPO_MOV[mov.tipo_movimiento] ?? {
+                    label: mov.tipo_movimiento,
+                    cls: "bg-gray-100 text-gray-600",
+                    icon: "•",
+                  };
+
+                  return (
+                    <tr key={mov.id} className="hover:bg-gray-50/50 transition-colors">
+                      {/* Tipo */}
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${tipo.cls}`}>
+                          <span className="font-bold">{tipo.icon}</span>
+                          {tipo.label}
+                        </span>
+                      </td>
+
+                      {/* Artículo */}
+                      <td className="px-4 py-3.5">
+                        <p className="font-medium text-gray-900">
+                          {(mov.inventario as any)?.nombre ?? "—"}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {(mov.inventario as any)?.clave ?? ""}
+                        </p>
+                      </td>
+
+                      {/* Usuario */}
+                      <td className="px-4 py-3.5 text-gray-600 hidden sm:table-cell">
+                        {(mov.usuarios as any)?.nombre_completo ?? "—"}
+                      </td>
+
+                      {/* Cantidad */}
+                      <td className="px-4 py-3.5 text-center">
+                        <span className="font-semibold text-gray-900">×{mov.cantidad}</span>
+                      </td>
+
+                      {/* Stock antes */}
+                      <td className="px-4 py-3.5 text-center text-gray-500 hidden md:table-cell">
+                        {mov.stock_antes ?? "—"}
+                      </td>
+
+                      {/* Stock después */}
+                      <td className="px-4 py-3.5 text-center hidden md:table-cell">
+                        {mov.stock_despues !== undefined && mov.stock_despues !== null ? (
+                          <span
+                            className={
+                              mov.stock_despues < (mov.stock_antes ?? 0)
+                                ? "text-red-600 font-medium"
+                                : "text-emerald-600 font-medium"
+                            }
+                          >
+                            {mov.stock_despues}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+
+                      {/* Fecha */}
+                      <td className="px-4 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
+                        {fmtFecha(mov.fecha)}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginación */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+          <p className="text-xs text-gray-400">
+            Página {page} · {PER_PAGE} por página
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              ← Anterior
+            </button>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={movimientos.length < PER_PAGE}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

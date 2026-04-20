@@ -1,44 +1,87 @@
-import React from 'react';
+import React from "react";
 
-interface Props {
+// ---------------------------------------------------------------------------
+// Tipos de props
+// ---------------------------------------------------------------------------
+interface StatsCardProps {
+  /** Título descriptivo de la métrica */
   title: string;
-  count: number;
+  /** Valor principal a mostrar (número o texto) */
+  value: string | number;
+  /** Ícono SVG como elemento React */
   icon: React.ReactNode;
-  className?: string;
-  color?: string; // Añadimos esto para que coincida con el Dashboard
+  /** Color de fondo del ícono: 'blue' | 'green' | 'amber' | 'red' */
+  iconColor?: "blue" | "green" | "amber" | "red" | "purple";
+  /** Texto adicional (ej: "3 artículos bajo mínimo") */
+  subtitle?: string;
+  /** Cambio porcentual para mostrar tendencia */
+  trend?: number;
+  /** Indica si se está cargando la información */
+  isLoading?: boolean;
 }
 
-export default function StatsCard({ title, count, icon, className = "", color = "bg-slate-50" }: Props) {
+// ---------------------------------------------------------------------------
+// Mapa de colores para el ícono
+// ---------------------------------------------------------------------------
+const colorMap = {
+  blue:   "bg-blue-100 text-blue-600",
+  green:  "bg-emerald-100 text-emerald-600",
+  amber:  "bg-amber-100 text-amber-600",
+  red:    "bg-red-100 text-red-600",
+  purple: "bg-purple-100 text-purple-600",
+};
+
+// ---------------------------------------------------------------------------
+// Componente StatsCard
+// ---------------------------------------------------------------------------
+export default function StatsCard({
+  title,
+  value,
+  icon,
+  iconColor = "blue",
+  subtitle,
+  trend,
+  isLoading = false,
+}: StatsCardProps) {
   return (
-    <div className={`bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 transition-all duration-300 hover:shadow-md relative overflow-hidden group ${className}`}>
-      
-      {/* Contenedor del Icono Principal */}
-      {/* He cambiado el bg-slate-50 por la prop {color} para mayor dinamismo */}
-      <div className={`flex-shrink-0 w-14 h-14 flex items-center justify-center ${color} rounded-2xl text-slate-600 transition-all duration-300 group-hover:bg-blue-600 group-hover:text-white z-10`}>
-        {icon}
-      </div>
-
-      {/* Información */}
-      <div className="flex flex-col z-10">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] mb-1">
-          {title}
-        </span>
-        <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-black text-slate-900 tabular-nums">
-            {count}
-          </span>
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+      <div className="flex items-start justify-between">
+        {/* Ícono */}
+        <div className={`p-2.5 rounded-lg ${colorMap[iconColor]}`}>
+          {icon}
         </div>
+
+        {/* Tendencia (opcional) */}
+        {trend !== undefined && !isLoading && (
+          <span
+            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              trend >= 0
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-700"
+            }`}
+          >
+            {trend >= 0 ? "+" : ""}{trend}%
+          </span>
+        )}
       </div>
 
-      {/* Decoración sutil de fondo */}
-      <div className="absolute -right-2 -bottom-2 opacity-[0.05] text-slate-900 pointer-events-none group-hover:scale-110 transition-transform duration-500">
-        {React.isValidElement(icon) ? 
-          React.cloneElement(icon as React.ReactElement<any>, { 
-            size: 80,
-            strokeWidth: 2 
-          }) 
-          : null
-        }
+      {/* Contenido */}
+      <div className="mt-4">
+        {isLoading ? (
+          /* Esqueleto de carga */
+          <>
+            <div className="h-8 w-20 bg-gray-100 rounded animate-pulse mb-2" />
+            <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+          </>
+        ) : (
+          <>
+            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{title}</p>
+            {subtitle && (
+              <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,268 +1,618 @@
+/**
+ * @file app/prestamos/page.tsx
+ * @description Módulo de préstamos/salidas de material.
+ * Permite crear nuevas salidas mediante un modal con formulario completo,
+ * buscar por fecha o nombre de herramienta, y ver el estado de cada préstamo.
+ */
+
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { 
-  ArrowLeftRight, Search, User, Clock, 
-  CheckCircle2, AlertCircle, Plus, Calendar 
-} from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import Sidebar from '@/components/sidebar';
-import ModalGestion from '@/components/ModalGestion';
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "@/lib/supabase";
+import type {
+  Prestamo,
+  Usuario,
+  Departamento,
+  InventarioItem,
+  EstadoPrestamoEnum,
+} from "@/lib/supabase";
 
-// Tipado estricto para evitar errores de compilación
-interface Prestamo {
-  id: number;
-  fecha_prestamo: string; // La mapeamos desde fecha_salida
-  fecha_devolucion_estimada: string;
-  estado: string;
+// ---------------------------------------------------------------------------
+// Colores de estado de préstamo
+// ---------------------------------------------------------------------------
+const ESTADO_PRESTAMO: Record<EstadoPrestamoEnum, { label: string; cls: string }> = {
+  activo:    { label: "Activo",    cls: "bg-blue-100 text-blue-700" },
+  devuelto:  { label: "Devuelto",  cls: "bg-emerald-100 text-emerald-700" },
+  atrasado:  { label: "Atrasado",  cls: "bg-red-100 text-red-700" },
+  cancelado: { label: "Cancelado", cls: "bg-gray-100 text-gray-600" },
+};
+
+// ---------------------------------------------------------------------------
+// Tipo para los ítems dentro del modal (formulario)
+// ---------------------------------------------------------------------------
+interface ItemSalida {
+  inventario_id: number;
+  nombre: string;
+  clave: string;
   cantidad: number;
-  inventario: { 
-    nombre: string; 
-    clave: string; 
-  };
-  usuarios: { 
-    nombre_completo: string; 
-  };
+  stock_disponible: number;
 }
 
+// ---------------------------------------------------------------------------
+// Componente principal
+// ---------------------------------------------------------------------------
 export default function PrestamosPage() {
-  const [prestamos, setPrestamos] = useState<Prestamo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("todos");
-  
-  const [selectedPrestamo, setSelectedPrestamo] = useState<Prestamo | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [prestamos, setPrestamos]     = useState<Prestamo[]>([]);
+  const [usuarios, setUsuarios]       = useState<Usuario[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [inventario, setInventario]   = useState<InventarioItem[]>([]);
+  const [isLoading, setIsLoading]     = useState(true);
 
+  // Búsqueda
+  const [search, setSearch]           = useState("");
+  const [dateFilter, setDateFilter]   = useState("");
+
+  // Estado del modal
+  const [modalOpen, setModalOpen]     = useState(false);
+  const [saving, setSaving]           = useState(false);
+  const [modalError, setModalError]   = useState<string | null>(null);
+
+  // Formulario de nueva salida
+  const [form, setForm] = useState({
+    usuario_id:     "",
+    departamento_id: "",
+    fecha_devolucion: "",
+    observaciones:  "",
+  });
+  const [itemsSalida, setItemsSalida] = useState<ItemSalida[]>([]);
+  const [busquedaItem, setBusquedaItem] = useState("");
+  const [itemsResultados, setItemsResultados] = useState<InventarioItem[]>([]);
+
+  // -------------------------------------------------------------------------
+  // Cargar préstamos con filtros
+  // -------------------------------------------------------------------------
+  const loadPrestamos = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      let query = supabase
+        .from("prestamos")
+        .select(`
+          *,
+          usuarios!prestamos_usuario_id_fkey (nombre_completo),
+          departamentos (nombre),
+          detalle_prestamo (
+            id, cantidad, cantidad_devuelta, estado,
+            inventario (nombre, clave)
+          )
+        `)
+        .order("created_at", { ascending: false });
+
+      // Filtro por fecha
+      if (dateFilter) {
+        const inicio = new Date(dateFilter);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(dateFilter);
+        fin.setHours(23, 59, 59, 999);
+        query = query
+          .gte("fecha_salida", inicio.toISOString())
+          .lte("fecha_salida", fin.toISOString());
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      let result = (data as Prestamo[]) ?? [];
+
+      // Filtro por nombre de herramienta (en cliente)
+      if (search.trim()) {
+        const s = search.toLowerCase();
+        result = result.filter((p) =>
+          p.detalle_prestamo?.some((d) =>
+            (d.inventario as any)?.nombre?.toLowerCase().includes(s) ||
+            (d.inventario as any)?.clave?.toLowerCase().includes(s)
+          ) ||
+          (p.usuarios as any)?.nombre_completo?.toLowerCase().includes(s)
+        );
+      }
+
+      setPrestamos(result);
+    } catch (err) {
+      console.error("Error cargando préstamos:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, dateFilter]);
+
+  // Cargar catálogos una vez
   useEffect(() => {
-    fetchPrestamos();
+    Promise.all([
+      supabase.from("usuarios").select("*").order("nombre_completo"),
+      supabase.from("departamentos").select("*").order("nombre"),
+      supabase.from("inventario")
+        .select("id, nombre, clave, stock_disponible, unidad_medida")
+        .eq("estado", "activo")
+        .gt("stock_disponible", 0)
+        .order("nombre"),
+    ]).then(([{ data: u }, { data: d }, { data: inv }]) => {
+      setUsuarios(u ?? []);
+      setDepartamentos(d ?? []);
+      setInventario(inv as InventarioItem[] ?? []);
+    });
   }, []);
 
-  //  función fetchPrestamos 
-const fetchPrestamos = async () => {
-  try {
-    setLoading(true);
-    
-    const { data, error } = await supabase
-      .from('prestamos')
-      .select(`
-        id,
-        fecha_salida,
-        estado,
-        usuarios!usuario_id (
-          nombre_completo
-        ),
-        detalle_prestamo (
-          cantidad,
-          inventario (
-            id,
-            nombre,
-            clave
-          )
-        )
-      `)
-      .order('fecha_salida', { ascending: false });
+  useEffect(() => {
+    const t = setTimeout(loadPrestamos, 300);
+    return () => clearTimeout(t);
+  }, [loadPrestamos]);
 
-    if (error) {
-      console.error("Error de Supabase:", error.message);
+  // -------------------------------------------------------------------------
+  // Búsqueda de artículos dentro del modal
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!busquedaItem.trim()) {
+      setItemsResultados([]);
+      return;
+    }
+    const filtrados = inventario.filter((inv) =>
+      inv.nombre.toLowerCase().includes(busquedaItem.toLowerCase()) ||
+      inv.clave.toLowerCase().includes(busquedaItem.toLowerCase())
+    );
+    setItemsResultados(filtrados.slice(0, 6));
+  }, [busquedaItem, inventario]);
+
+  // -------------------------------------------------------------------------
+  // Agregar artículo a la lista de salida
+  // -------------------------------------------------------------------------
+  const agregarItem = (inv: InventarioItem) => {
+    const yaExiste = itemsSalida.find((i) => i.inventario_id === inv.id);
+    if (yaExiste) return;
+    setItemsSalida((prev) => [
+      ...prev,
+      {
+        inventario_id:    inv.id,
+        nombre:           inv.nombre,
+        clave:            inv.clave,
+        cantidad:         1,
+        stock_disponible: inv.stock_disponible,
+      },
+    ]);
+    setBusquedaItem("");
+    setItemsResultados([]);
+  };
+
+  /** Cambiar cantidad de un ítem en la lista */
+  const cambiarCantidad = (id: number, cantidad: number) => {
+    setItemsSalida((prev) =>
+      prev.map((i) => (i.inventario_id === id ? { ...i, cantidad } : i))
+    );
+  };
+
+  /** Eliminar un ítem de la lista */
+  const quitarItem = (id: number) => {
+    setItemsSalida((prev) => prev.filter((i) => i.inventario_id !== id));
+  };
+
+  // -------------------------------------------------------------------------
+  // Guardar nueva salida
+  // -------------------------------------------------------------------------
+  const handleGuardar = async () => {
+    setModalError(null);
+
+    if (!form.usuario_id) {
+      setModalError("Selecciona el usuario que recibe el material.");
+      return;
+    }
+    if (itemsSalida.length === 0) {
+      setModalError("Agrega al menos un artículo a la salida.");
       return;
     }
 
-    const transformado: Prestamo[] = (data || []).map((item: any) => {
-      const detalle = item.detalle_prestamo?.[0];
-      
-      return {
-        id: item.id,
-        fecha_prestamo: item.fecha_salida,
-        fecha_devolucion_estimada: item.fecha_salida, 
-        estado: item.estado,
-        cantidad: detalle?.cantidad || 0,
-        // Guardamos el ID real para la función de devolución
-        inventario_id_real: detalle?.inventario?.id,
-        inventario: detalle?.inventario || { nombre: 'N/A', clave: 'S/N' },
-        usuarios: item.usuarios || { nombre_completo: 'Usuario Desconocido' }
-      };
+    // Validar cantidades
+    for (const item of itemsSalida) {
+      if (item.cantidad <= 0) {
+        setModalError(`La cantidad de "${item.nombre}" debe ser mayor a 0.`);
+        return;
+      }
+      if (item.cantidad > item.stock_disponible) {
+        setModalError(`No hay suficiente stock de "${item.nombre}".`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      // Obtener usuario logueado (creador del préstamo)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sin sesión activa");
+
+      // 1. Crear cabecera del préstamo
+      const { data: nuevoPrestamo, error: errPrestamo } = await supabase
+        .from("prestamos")
+        .insert({
+          usuario_id:       form.usuario_id,
+          departamento_id:  form.departamento_id || null,
+          created_by:       user.id,
+          fecha_salida:     new Date().toISOString(),
+          fecha_devolucion: form.fecha_devolucion || null,
+          estado:           "activo",
+          observaciones:    form.observaciones || null,
+        })
+        .select("id")
+        .single();
+
+      if (errPrestamo) throw new Error(errPrestamo.message);
+
+      const prestamoId = nuevoPrestamo.id;
+
+      // 2. Insertar detalle de cada ítem
+      const detalles = itemsSalida.map((i) => ({
+        prestamo_id:    prestamoId,
+        inventario_id:  i.inventario_id,
+        cantidad:       i.cantidad,
+        cantidad_devuelta: 0,
+        estado:         "pendiente",
+      }));
+
+      const { error: errDetalle } = await supabase
+        .from("detalle_prestamo")
+        .insert(detalles);
+
+      if (errDetalle) throw new Error(errDetalle.message);
+
+      // 3. Actualizar stock disponible de cada artículo
+      for (const item of itemsSalida) {
+        const nuevoStock = item.stock_disponible - item.cantidad;
+        await supabase
+          .from("inventario")
+          .update({ stock_disponible: nuevoStock, updated_at: new Date().toISOString() })
+          .eq("id", item.inventario_id);
+
+        // 4. Registrar movimiento en historial
+        await supabase.from("historial_inventario").insert({
+          inventario_id:   item.inventario_id,
+          usuario_id:      user.id,
+          tipo_movimiento: "prestamo",
+          cantidad:        item.cantidad,
+          stock_antes:     item.stock_disponible,
+          stock_despues:   nuevoStock,
+          prestamo_id:     prestamoId,
+          observaciones:   `Préstamo #${prestamoId}`,
+        });
+      }
+
+      // Cerrar modal y recargar
+      setModalOpen(false);
+      resetForm();
+      loadPrestamos();
+    } catch (err: any) {
+      setModalError(err.message ?? "Error inesperado al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Restablecer el formulario del modal */
+  const resetForm = () => {
+    setForm({ usuario_id: "", departamento_id: "", fecha_devolucion: "", observaciones: "" });
+    setItemsSalida([]);
+    setBusquedaItem("");
+    setItemsResultados([]);
+    setModalError(null);
+  };
+
+  // -------------------------------------------------------------------------
+  // Formatear fecha legible
+  // -------------------------------------------------------------------------
+  const fmtFecha = (f: string) =>
+    new Date(f).toLocaleDateString("es-MX", {
+      day: "2-digit", month: "short", year: "numeric",
     });
 
-    setPrestamos(transformado);
-  } catch (err) {
-    console.error('Error crítico:', err);
-  } finally {
-    setLoading(false);
-  }
-};
- const ejecutarDevolucion = async () => {
-  if (!selectedPrestamo) return;
-  
-  try {
-    setIsProcessing(true);
-
-    // 1. Marcar cabecera como devuelta
-    const { error: errP } = await supabase
-      .from('prestamos')
-      .update({ estado: 'devuelto', fecha_devolucion: new Date().toISOString() })
-      .eq('id', selectedPrestamo.id);
-    if (errP) throw errP;
-
-    // 2. Actualizar detalle_prestamo usando el ID real que ya tenemos
-    const { error: errD } = await supabase
-      .from('detalle_prestamo')
-      .update({ estado: 'devuelto', cantidad_devuelta: selectedPrestamo.cantidad })
-      .eq('prestamo_id', selectedPrestamo.id)
-      .eq('inventario_id', (selectedPrestamo as any).inventario_id_real); // Usamos el ID guardado
-    if (errD) throw errD;
-
-    // 3. Obtener stock actual para el cálculo
-    const { data: inv } = await supabase
-      .from('inventario')
-      .select('stock_disponible')
-      .eq('id', (selectedPrestamo as any).inventario_id_real)
-      .single();
-
-    const nuevoStock = (inv?.stock_disponible || 0) + selectedPrestamo.cantidad;
-
-    // 4. Actualizar stock disponible
-    await supabase
-      .from('inventario')
-      .update({ stock_disponible: nuevoStock })
-      .eq('id', (selectedPrestamo as any).inventario_id_real);
-
-    // 5. Historial
-    const { data: userData } = await supabase.auth.getUser();
-    await supabase.from('historial_inventario').insert([{
-      inventario_id: (selectedPrestamo as any).inventario_id_real,
-      usuario_id: userData.user?.id,
-      tipo_movimiento: 'devolucion',
-      cantidad: selectedPrestamo.cantidad,
-      stock_antes: inv?.stock_disponible,
-      stock_despues: nuevoStock,
-      prestamo_id: selectedPrestamo.id
-    }]);
-
-    setSelectedPrestamo(null);
-    fetchPrestamos();
-    alert("Devolución exitosa");
-
-  } catch (e) {
-    console.error(e);
-    alert("Error al procesar");
-  } finally {
-    setIsProcessing(false);
-  }
-};
-
-  const filteredPrestamos = prestamos.filter(p => {
-    const search = searchTerm.toLowerCase();
-    return (
-      (p.inventario?.nombre?.toLowerCase().includes(search) || p.usuarios?.nombre_completo?.toLowerCase().includes(search)) &&
-      (filterStatus === "todos" ? true : p.estado === filterStatus)
-    );
-  });
-
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar />
-      <main className="flex-1 w-full lg:ml-64 p-4 md:p-8 lg:p-12 transition-all">
-        <div className="max-w-7xl mx-auto">
-          
-          {/* Header */}
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
-            <h1 className="text-3xl font-black text-slate-800 flex items-center gap-3">
-              <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
-                <ArrowLeftRight size={24} />
-              </div>
-              Préstamos
-            </h1>
-            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-              <div className="relative flex-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar..." 
-                  className="w-full lg:w-72 pl-12 pr-4 py-3 bg-white border-2 border-slate-100 rounded-2xl focus:border-blue-600 outline-none transition-all"
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <button className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                <Plus size={20} /> Nueva Salida
-              </button>
-            </div>
-          </div>
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Encabezado */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Préstamos / Salidas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Control de material prestado a usuarios y departamentos</p>
+        </div>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+        >
+          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          + Nueva salida
+        </button>
+      </div>
 
-          {/* Filtros */}
-          <div className="flex gap-2 overflow-x-auto pb-4 mb-6 no-scrollbar">
-            {['todos', 'activo', 'atrasado', 'devuelto'].map((s) => (
-              <button 
-                key={s} 
-                onClick={() => setFilterStatus(s)}
-                className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filterStatus === s ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-400 border border-slate-100'}`}
-              >
-                {s}
-              </button>
-            ))}
+      {/* Filtros de búsqueda */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-5">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por herramienta o usuario..."
+              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
+          />
+          {(search || dateFilter) && (
+            <button
+              onClick={() => { setSearch(""); setDateFilter(""); }}
+              className="text-sm text-gray-400 hover:text-gray-600 px-2"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      </div>
 
-          {/* Tabla */}
-          <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left min-w-[800px]">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Equipo</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Responsable</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Estado</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400">Entrega</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase text-slate-400 text-center">Gestión</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {loading ? (
-                    <tr><td colSpan={5} className="py-20 text-center text-slate-300 font-bold">Cargando datos...</td></tr>
-                  ) : filteredPrestamos.map((p) => (
-                    <tr key={p.id} className="hover:bg-blue-50/20 transition-all">
-                      <td className="px-8 py-6">
-                        <p className="text-sm font-bold text-slate-800">{p.inventario?.nombre}</p>
-                        <p className="text-[10px] text-blue-500 font-black">REF: {p.inventario?.clave}</p>
+      {/* Tabla de préstamos */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">#</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Usuario</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Artículos</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Fecha salida</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Devolución</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <td key={j} className="px-5 py-4">
+                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
                       </td>
-                      <td className="px-8 py-6 text-xs font-bold text-slate-600">{p.usuarios?.nombre_completo}</td>
-                      <td className="px-8 py-6">
-                        <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${p.estado === 'devuelto' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                          {p.estado}
+                    ))}
+                  </tr>
+                ))
+              ) : prestamos.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-gray-400 text-sm">
+                    No se encontraron préstamos
+                  </td>
+                </tr>
+              ) : (
+                prestamos.map((p) => {
+                  const estado = ESTADO_PRESTAMO[p.estado];
+                  const articulos = p.detalle_prestamo?.map(
+                    (d) => (d.inventario as any)?.nombre ?? "—"
+                  ).join(", ");
+
+                  return (
+                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-4 font-mono text-gray-500 text-xs">#{p.id}</td>
+                      <td className="px-4 py-4">
+                        <p className="font-medium text-gray-900">{(p.usuarios as any)?.nombre_completo ?? "—"}</p>
+                        <p className="text-xs text-gray-400">{(p.departamentos as any)?.nombre ?? "Sin depto."}</p>
+                      </td>
+                      <td className="px-4 py-4 text-gray-600 max-w-xs truncate hidden sm:table-cell">
+                        {articulos ?? "—"}
+                      </td>
+                      <td className="px-4 py-4 text-gray-600 hidden md:table-cell">{fmtFecha(p.fecha_salida)}</td>
+                      <td className="px-4 py-4 text-gray-600 hidden md:table-cell">
+                        {p.fecha_devolucion ? fmtFecha(p.fecha_devolucion) : "—"}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${estado.cls}`}>
+                          {estado.label}
                         </span>
                       </td>
-                      <td className="px-8 py-6 text-[10px] font-bold text-slate-400">
-                        {new Date(p.fecha_devolucion_estimada).toLocaleDateString()}
-                      </td>
-                      <td className="px-8 py-6 text-center">
-                        <button 
-                          onClick={() => setSelectedPrestamo(p)}
-                          disabled={p.estado === 'devuelto'}
-                          className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${p.estado === 'devuelto' ? 'bg-slate-50 text-slate-300' : 'bg-white border border-slate-200 text-blue-600 hover:bg-blue-600 hover:text-white'}`}
-                        >
-                          {p.estado === 'devuelto' ? 'Finalizado' : 'Gestionar'}
-                        </button>
-                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ================================================================== */}
+      {/* Modal: Nueva salida                                                 */}
+      {/* ================================================================== */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Cabecera del modal */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Nueva salida de material</h2>
+              <button
+                onClick={() => { setModalOpen(false); resetForm(); }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              >
+                <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Cuerpo del modal */}
+            <div className="px-6 py-5 space-y-5">
+              {modalError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+                  {modalError}
+                </div>
+              )}
+
+              {/* Usuario receptor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    Usuario que recibe <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.usuario_id}
+                    onChange={(e) => setForm((f) => ({ ...f, usuario_id: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Selecciona usuario</option>
+                    {usuarios.map((u) => (
+                      <option key={u.id} value={u.id}>{u.nombre_completo}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Departamento</label>
+                  <select
+                    value={form.departamento_id}
+                    onChange={(e) => setForm((f) => ({ ...f, departamento_id: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Sin asignar</option>
+                    {departamentos.map((d) => (
+                      <option key={d.id} value={d.id}>{d.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Fecha de devolución y observaciones */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Fecha estimada de devolución</label>
+                  <input
+                    type="date"
+                    value={form.fecha_devolucion}
+                    onChange={(e) => setForm((f) => ({ ...f, fecha_devolucion: e.target.value }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Observaciones</label>
+                  <input
+                    type="text"
+                    value={form.observaciones}
+                    onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))}
+                    placeholder="Ej: Solicitud de trabajo #12"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Buscador de artículos */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Agregar artículos <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={busquedaItem}
+                    onChange={(e) => setBusquedaItem(e.target.value)}
+                    placeholder="Buscar herramienta o material..."
+                    className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  {/* Resultados del buscador */}
+                  {itemsResultados.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 overflow-hidden">
+                      {itemsResultados.map((inv) => (
+                        <button
+                          key={inv.id}
+                          type="button"
+                          onClick={() => agregarItem(inv)}
+                          className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-blue-50 text-left transition-colors"
+                        >
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{inv.nombre}</p>
+                            <p className="text-xs text-gray-400">{inv.clave}</p>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {inv.stock_disponible} disponibles
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista de artículos agregados */}
+              {itemsSalida.length > 0 && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+                    Artículos en esta salida
+                  </div>
+                  <div className="divide-y divide-gray-100">
+                    {itemsSalida.map((item) => (
+                      <div key={item.inventario_id} className="flex items-center gap-3 px-4 py-3">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{item.nombre}</p>
+                          <p className="text-xs text-gray-400">{item.clave} · máx. {item.stock_disponible}</p>
+                        </div>
+                        <input
+                          type="number"
+                          min={1}
+                          max={item.stock_disponible}
+                          value={item.cantidad}
+                          onChange={(e) => cambiarCantidad(item.inventario_id, Number(e.target.value))}
+                          className="w-20 border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => quitarItem(item.inventario_id)}
+                          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => { setModalOpen(false); resetForm(); }}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleGuardar}
+                  disabled={saving}
+                  className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {saving && (
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {saving ? "Registrando..." : "Registrar salida"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </main>
-
-      <ModalGestion 
-        isOpen={!!selectedPrestamo}
-        onClose={() => setSelectedPrestamo(null)}
-        onConfirm={ejecutarDevolucion}
-        loading={isProcessing}
-        data={selectedPrestamo ? {
-          nombre: selectedPrestamo.inventario.nombre,
-          cantidad: selectedPrestamo.cantidad,
-          responsable: selectedPrestamo.usuarios.nombre_completo,
-          clave: selectedPrestamo.inventario.clave
-        } : null}
-      />
+      )}
     </div>
   );
 }

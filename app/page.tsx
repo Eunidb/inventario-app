@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react"; // Opcional: para un toque extra
 
 export default function Home() {
   return (

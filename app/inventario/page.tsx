@@ -1,207 +1,256 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import Link from 'next/link'
-import Sidebar from '@/components/sidebar'
-import { 
-  Search, Plus, Edit3, Trash2, MapPin, Tag, 
-  Box, ImageOff, AlertCircle, CheckCircle2, ChevronRight
-} from 'lucide-react'
-import { useRouter } from 'next/navigation'
+/**
+ * @file app/inventario/page.tsx
+ * @description Vista principal del inventario optimizada con diseño responsivo y paleta azul profesional.
+ */
 
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { createClient } from '@/lib/client'
+import Sidebar from "@/components/sidebar";
+import ModalGestion from "@/components/ModalGestion";
+import type { InventarioItem, Categoria, EstadoInventarioEnum } from "@/lib/supabase";
+
+const supabase = createClient()
+
+// Colores de estado vibrantes para contrastar con el fondo limpio
+const ESTADO_LABELS: Record<EstadoInventarioEnum, { label: string; cls: string }> = {
+  activo:        { label: "Activo",         cls: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  inactivo:      { label: "Inactivo",       cls: "bg-slate-100 text-slate-600 border-slate-200" },
+  en_reparacion: { label: "En reparación",  cls: "bg-amber-50 text-amber-700 border-amber-100" },
+  mantenimiento: { label: "Mantenimiento",  cls: "bg-blue-50 text-blue-700 border-blue-100" },
+  dado_de_baja:  { label: "Baja",           cls: "bg-rose-50 text-rose-700 border-rose-100" },
+};
 
 export default function InventarioPage() {
-    const router = useRouter()
-  const [items, setItems] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [items, setItems]           = useState<InventarioItem[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [isLoading, setIsLoading]   = useState(true);
+  const [search, setSearch]         = useState("");
+  const [catFilter, setCatFilter]   = useState<number | null>(null);
+  const [estFilter, setEstFilter]   = useState<string>("");
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [editItem, setEditItem]     = useState<InventarioItem | null>(null);
+  const [page, setPage]             = useState(1);
+  const PER_PAGE = 15;
+
+  const loadInventario = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      let query = supabase
+        .from("inventario")
+        .select(`*, categorias(nombre), departamentos(nombre)`, { count: "exact" })
+        .order("nombre")
+        .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
+
+      if (search.trim()) {
+        query = query.or(`nombre.ilike.%${search}%,clave.ilike.%${search}%`);
+      }
+      if (catFilter) {
+        query = query.eq("categoria_id", catFilter);
+      }
+      if (estFilter) {
+        query = query.eq("estado", estFilter);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setItems(data as InventarioItem[] ?? []);
+    } catch (err) {
+      console.error("Error cargando inventario:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, catFilter, estFilter, page]);
 
   useEffect(() => {
-    fetchInventario()
-  }, [])
+    supabase.from("categorias").select("*").order("nombre").then(({ data }) => {
+      setCategorias(data ?? []);
+    });
+  }, []);
 
-  async function fetchInventario() {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('inventario')
-      .select('*, categorias(nombre)')
-      .order('nombre', { ascending: true })
+  useEffect(() => {
+    const timer = setTimeout(loadInventario, 300);
+    return () => clearTimeout(timer);
+  }, [loadInventario]);
 
-    if (!error) setItems(data || [])
-    setLoading(false)
-  }
-
-  async function eliminarItem(id: string, clave: string) {
-  const confirmar = confirm(`¿Estás seguro de eliminar el artículo ${clave}?`);
-  if (!confirmar) return;
-
-  const { error } = await supabase
-    .from('inventario')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    alert("Error al eliminar: " + error.message);
-  }else {
-      router.push('/inventario')
-      router.refresh()
-    }
-}
-  const filteredItems = items.filter(item => 
-    item.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (item.marca && item.marca.toLowerCase().includes(searchTerm.toLowerCase()))
-  )
+  const handleNew  = () => { setEditItem(null); setModalOpen(true); };
+  const handleEdit = (item: InventarioItem) => { setEditItem(item); setModalOpen(true); };
 
   return (
-    <div className="flex min-h-screen bg-[#F0F5FA]">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
+      
+      {/* 1. SIDEBAR */}
       <Sidebar />
 
-      <main className="flex-1 ml-0 md:ml-64 p-4 lg:p-6 transition-all">
-        {/* HEADER COMPACTO Y PROFESIONAL */}
-        <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center gap-4 mb-6 bg-white p-5 rounded-2xl border border-blue-100 shadow-sm">
-          <div>
-            <div className="flex items-center gap-2 text-blue-600 mb-1">
-              <Box size={18} />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Panel de Control</span>
-            </div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Inventario General</h1>
-          </div>
+      {/* 2. CONTENIDO PRINCIPAL */}
+      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
+        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
           
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* BUSCADOR MÁS ESTILIZADO Y PEQUEÑO */}
-            <div className="relative flex-1 sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-              <input 
-                type="text" 
-                placeholder="Buscar activo..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-slate-700 placeholder:text-slate-400" 
-              />
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+            <div className="space-y-1">
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Inventario</h1>
+              <p className="text-slate-500 font-medium">Gestión de activos y stock de la empresa</p>
             </div>
             
-            {/* BOTÓN "NUEVO" REDUCIDO */}
-            <Link href="/inventario/nuevo" className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95 whitespace-nowrap">
-              <Plus size={16} /> Nuevo
-            </Link>
+            <button
+              onClick={handleNew}
+              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg shadow-blue-200 transition-all hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <PlusIcon />
+              <span>Nuevo Artículo</span>
+            </button>
           </div>
-        </div>
 
-        {/* CONTENEDOR DE TABLA ULTRA-ADAPTADO */}
-        <div className="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left table-auto">
-              <thead>
-                <tr className="bg-blue-50/50 border-b border-blue-100">
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest">Producto</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Categoría</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Marca</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Stock</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Disponible</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest">Ubicación</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Estado</th>
-                  <th className="px-4 py-3 text-[10px] font-bold text-blue-900/60 uppercase tracking-widest text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-blue-50/30 transition-colors group">
-                    {/* PRODUCTO */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                          {item.imagen_url ? (
-                            <img src={item.imagen_url} className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageOff size={16} className="text-slate-300" />
-                          )}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-slate-800 font-bold text-xs line-clamp-1">{item.nombre}</span>
-                          <span className="text-[10px] text-slate-400 line-clamp-1">ID: {item.clave}</span>
-                        </div>
-                      </div>
-                    </td>
+          {/* Filtros */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative lg:col-span-2">
+                <SearchIcon />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                  placeholder="Buscar por nombre o SKU..."
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-400 transition-all outline-none text-slate-700"
+                />
+              </div>
 
-                    {/* CATEGORÍA */}
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 uppercase">
-                        {item.categorias?.nombre || 'Gral'}
-                      </span>
-                    </td>
+              <select
+                value={catFilter ?? ""}
+                onChange={(e) => { setCatFilter(e.target.value ? Number(e.target.value) : null); setPage(1); }}
+                className="py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 outline-none text-slate-600 font-medium cursor-pointer"
+              >
+                <option value="">Todas las categorías</option>
+                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
 
-                    {/* MARCA */}
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-[10px] font-medium text-slate-500 uppercase">{item.marca || '-'}</span>
-                    </td>
-
-                    {/* STOCK TOTAL */}
-                    <td className="px-4 py-3 text-center">
-                      <span className="text-xs font-bold text-slate-600">{item.stock_total || 0}</span>
-                    </td>
-
-                    {/* DISPONIBLE */}
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <span className={`text-xs font-black ${item.stock_disponible <= 5 ? 'text-red-500' : 'text-blue-600'}`}>
-                          {item.stock_disponible}
-                        </span>
-                        <div className="w-8 h-1 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full ${item.stock_disponible <= 5 ? 'bg-red-500' : 'bg-blue-500'}`}
-                            style={{ width: `${Math.min((item.stock_disponible / (item.stock_total || 1)) * 100, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* UBICACIÓN */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 text-slate-500">
-                        <MapPin size={12} className="text-blue-400" />
-                        <span className="text-[10px] font-bold uppercase truncate max-w-[80px]">{item.ubicacion || 'N/A'}</span>
-                      </div>
-                    </td>
-
-                    {/* ESTADO */}
-                    <td className="px-4 py-3 text-center">
-                      <div className={`inline-flex items-center justify-center w-2 h-2 rounded-full ${item.estado === 'dado_de_baja' ? 'bg-red-500' : 'bg-emerald-500'} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={item.estado} />
-                    </td>
-
-                    {/* ACCIONES COMPACTAS */}
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <Link 
-                          href={`/inventario/${item.id}`}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
-                        >
-                          <Edit3 size={14} />
-                        </Link>
-                        <button 
-                            onClick={() => eliminarItem(item.id, item.clave)}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all"
-                         >
-                             <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+              <select
+                value={estFilter}
+                onChange={(e) => { setEstFilter(e.target.value); setPage(1); }}
+                className="py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-100 outline-none text-slate-600 font-medium cursor-pointer"
+              >
+                <option value="">Cualquier estado</option>
+                {Object.entries(ESTADO_LABELS).map(([val, { label }]) => (
+                  <option key={val} value={val}>{label}</option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+            </div>
           </div>
-        </div>
 
-        {/* RESUMEN DE PIE */}
-        <div className="mt-4 flex justify-between items-center px-2">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]">
-            Sistema Gestión de Mantenimiento <span className="text-blue-200">|</span> v2.0
-          </p>
-          <div className="flex items-center gap-2 text-[10px] font-black text-blue-600 bg-white px-3 py-1 rounded-full border border-blue-50">
-            TOTAL: {filteredItems.length} ITEMS
+          {/* Tabla Card */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-8 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Artículo</th>
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Categoría</th>
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Stock</th>
+                    <th className="px-6 py-5 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Estado</th>
+                    <th className="px-8 py-5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {isLoading ? (
+                    <SkeletonRows />
+                  ) : items.map((item) => (
+                    <tr key={item.id} className="hover:bg-blue-50/40 transition-colors group">
+                      <td className="px-8 py-5">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                            {item.imagen_url ? (
+                              <img src={item.imagen_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <BoxIcon />
+                            )}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors line-clamp-1">
+                              {item.nombre}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                              {item.clave}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 hidden lg:table-cell">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-semibold">
+                          {(item.categorias as any)?.nombre ?? "General"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="text-base font-black text-slate-800">{item.stock_disponible}</span>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">Total: {item.stock_total}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span className={`px-3 py-1.5 rounded-xl text-[10px] font-bold border ${ESTADO_LABELS[item.estado]?.cls}`}>
+                          {ESTADO_LABELS[item.estado]?.label.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="p-2.5 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100"
+                        >
+                          <EditIcon />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Paginación */}
+            <div className="px-8 py-5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-500">
+                Mostrando <span className="text-slate-900 font-bold">{items.length}</span> activos
+              </p>
+              <div className="flex gap-3">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(p => p - 1)}
+                  className="px-5 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 transition-all shadow-sm"
+                >
+                  Anterior
+                </button>
+                <button
+                  disabled={items.length < PER_PAGE}
+                  onClick={() => setPage(p => p + 1)}
+                  className="px-5 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-40 transition-all shadow-md shadow-blue-100"
+                >
+                  Siguiente
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Modal */}
+      <ModalGestion
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        item={editItem}
+        onSaved={loadInventario}
+      />
     </div>
-  )
+  );
+}
+
+// ICONOS
+function PlusIcon() { return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></svg> }
+function SearchIcon() { return <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg> }
+function BoxIcon() { return <svg width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={1.5}><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg> }
+function EditIcon() { return <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg> }
+
+function SkeletonRows() {
+  return <>{[1, 2, 3, 4, 5].map(i => (
+    <tr key={i}><td colSpan={5} className="px-8 py-6"><div className="h-6 bg-slate-100 rounded-lg animate-pulse w-full" /></td></tr>
+  ))}</>
 }

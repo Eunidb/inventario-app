@@ -1,8 +1,20 @@
+/**
+ * @file app/historial/page.tsx
+ * @description Historial de movimientos del inventario.
+ * Filtros funcionales por tipo de movimiento, rango de fechas y búsqueda por texto.
+ * Muestra quién hizo cada movimiento, qué artículo y los stocks antes/después.
+ */
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@/lib/client'
+import Sidebar from "@/components/sidebar";
+
 import type { HistorialMovimiento, TipoMovimientoEnum } from "@/lib/supabase";
+
+// Cliente Supabase del navegador — instancia única por módulo
+const supabase = createClient()
 
 // ---------------------------------------------------------------------------
 // Configuración visual por tipo de movimiento
@@ -119,7 +131,13 @@ export default function HistorialPage() {
     });
 
   return (
-    <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar />
+
+      {/* Contenido Principal con margen responsive */}
+      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
+        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
+
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Historial de movimientos</h1>
@@ -349,6 +367,8 @@ export default function HistorialPage() {
           </div>
         </div>
       </div>
+       </div>
+      </main>
     </div>
   );
 }

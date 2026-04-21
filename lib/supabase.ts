@@ -1,3 +1,9 @@
+/**
+ * @file supabase.ts
+ * @description Cliente de Supabase configurado para el sistema de inventario.
+ * Exporta el cliente singleton y los tipos de base de datos.
+ */
+
 import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------

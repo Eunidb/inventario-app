@@ -1,7 +1,19 @@
+/**
+ * @file app/reportes/page.tsx
+ * @description Módulo de reportes del sistema de inventario.
+ * Genera reportes del inventario actual y de movimientos históricos.
+ * Exportación a PDF (imprimible) y Excel (xlsx).
+ */
+
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@/lib/client'
+import Sidebar from "@/components/sidebar";
+
+// Cliente Supabase del navegador — instancia única por módulo
+const supabase = createClient()
+
 
 // ---------------------------------------------------------------------------
 // Tipo de reporte disponible
@@ -316,7 +328,12 @@ export default function ReportesPage() {
   // Render
   // -------------------------------------------------------------------------
   return (
-    <div className="p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar />
+      {/* Contenido Principal con margen responsive */}
+      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
+        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
+
       {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
@@ -456,6 +473,8 @@ export default function ReportesPage() {
           </button>
         </div>
       </div>
+       </div>
+      </main>
     </div>
   );
 }

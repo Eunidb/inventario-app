@@ -37,7 +37,7 @@ export default function InventarioForm() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: cats } = await supabase.from('categorias').select('*')
+      const { data: cats } = await supabase.from('categorias').select('*').order('nombre', { ascending: true });
       const { data: deptos } = await supabase.from('departamentos').select('*')
       setCategorias(cats || [])
       setDepartamentos(deptos || [])
@@ -247,7 +247,13 @@ export default function InventarioForm() {
                 <select required value={formData.categoria_id} onChange={e => setFormData({...formData, categoria_id: e.target.value})}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none">
                   <option value="">Seleccionar...</option>
-                  {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                 {categorias.length > 0 ? (
+    categorias.map(c => (
+      <option key={c.id} value={c.id}>{c.nombre}</option>
+    ))
+  ) : (
+    <option disabled>Cargando categorías...</option>
+  )}
                 </select>
               </div>
 

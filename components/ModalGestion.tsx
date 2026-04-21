@@ -1,26 +1,25 @@
+/**
+ * @file ModalGestion.tsx
+ * @description Modal completo con todos los campos del inventario.
+ */
+
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from '@/lib/client'
+import { X, Package, Tag, Hash, MapPin, BarChart3, Image as ImageIcon, Loader2, Info, Layers, Home, Ruler } from "lucide-react";
+
 import type { InventarioItem, Categoria, Departamento, EstadoInventarioEnum } from "@/lib/supabase";
 
-// ---------------------------------------------------------------------------
-// Props del componente
-// ---------------------------------------------------------------------------
+const supabase = createClient()
+
 interface ModalGestionProps {
-  /** Indica si el modal está abierto */
   isOpen: boolean;
-  /** Callback para cerrar el modal */
   onClose: () => void;
-  /** Artículo a editar (null = modo creación) */
   item?: InventarioItem | null;
-  /** Callback al guardar exitosamente */
   onSaved: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Valores iniciales del formulario
-// ---------------------------------------------------------------------------
 const FORM_INITIAL = {
   clave: "",
   nombre: "",
@@ -39,24 +38,17 @@ const FORM_INITIAL = {
   departamento_id: undefined as number | undefined,
 };
 
-// ---------------------------------------------------------------------------
-// Componente ModalGestion
-// ---------------------------------------------------------------------------
 export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGestionProps) {
-  const [form, setForm]           = useState(FORM_INITIAL);
-  const [categorias, setCategorias]     = useState<Categoria[]>([]);
+  const [form, setForm] = useState(FORM_INITIAL);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  // -------------------------------------------------------------------------
-  // Carga catálogos al abrir el modal
-  // -------------------------------------------------------------------------
   useEffect(() => {
     if (!isOpen) return;
-
     const loadCatalogs = async () => {
       const [{ data: cats }, { data: deps }] = await Promise.all([
         supabase.from("categorias").select("*").order("nombre"),
@@ -65,30 +57,26 @@ export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGe
       setCategorias(cats ?? []);
       setDepartamentos(deps ?? []);
     };
-
     loadCatalogs();
   }, [isOpen]);
 
-  // -------------------------------------------------------------------------
-  // Rellenar formulario al editar un artículo existente
-  // -------------------------------------------------------------------------
   useEffect(() => {
     if (item) {
       setForm({
-        clave:           item.clave,
-        nombre:          item.nombre,
-        descripcion:     item.descripcion ?? "",
-        marca:           item.marca ?? "",
-        modelo:          item.modelo ?? "",
-        numero_serie:    item.numero_serie ?? "",
-        stock_total:     item.stock_total,
+        clave: item.clave,
+        nombre: item.nombre,
+        descripcion: item.descripcion ?? "",
+        marca: item.marca ?? "",
+        modelo: item.modelo ?? "",
+        numero_serie: item.numero_serie ?? "",
+        stock_total: item.stock_total,
         stock_disponible: item.stock_disponible,
-        stock_minimo:    item.stock_minimo,
-        unidad_medida:   item.unidad_medida ?? "pieza",
-        ubicacion:       item.ubicacion ?? "",
-        estado:          item.estado,
-        imagen_url:      item.imagen_url ?? "",
-        categoria_id:    item.categoria_id,
+        stock_minimo: item.stock_minimo,
+        unidad_medida: item.unidad_medida ?? "pieza",
+        ubicacion: item.ubicacion ?? "",
+        estado: item.estado,
+        imagen_url: item.imagen_url ?? "",
+        categoria_id: item.categoria_id,
         departamento_id: item.departamento_id,
       });
       setImagePreview(item.imagen_url ?? null);
@@ -99,12 +87,7 @@ export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGe
     setError(null);
   }, [item, isOpen]);
 
-  // -------------------------------------------------------------------------
-  // Manejador genérico de cambios en el formulario
-  // -------------------------------------------------------------------------
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
     setForm((prev) => ({
       ...prev,
@@ -112,9 +95,6 @@ export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGe
     }));
   };
 
-  // -------------------------------------------------------------------------
-  // Manejo de selección de imagen
-  // -------------------------------------------------------------------------
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -122,353 +102,181 @@ export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGe
     setImagePreview(URL.createObjectURL(file));
   };
 
-  // -------------------------------------------------------------------------
-  // Subir imagen a Supabase Storage
-  // -------------------------------------------------------------------------
-  const uploadImage = async (file: File): Promise<string | null> => {
-    const ext      = file.name.split(".").pop();
-    const fileName = `inventario/${Date.now()}.${ext}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("uploads")
-      .upload(fileName, file, { upsert: true });
-
-    if (uploadError) {
-      console.error("Error al subir imagen:", uploadError.message);
-      return null;
-    }
-
-    const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
-    return data.publicUrl;
-  };
-
-  // -------------------------------------------------------------------------
-  // Guardar (crear o actualizar) el artículo
-  // -------------------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
     try {
-      // Validaciones básicas
-      if (!form.clave.trim() || !form.nombre.trim()) {
-        throw new Error("La clave y el nombre son obligatorios.");
-      }
-      if (!form.categoria_id) {
-        throw new Error("Debes seleccionar una categoría.");
-      }
+      if (!form.clave.trim() || !form.nombre.trim()) throw new Error("Clave y nombre son obligatorios.");
+      if (!form.categoria_id) throw new Error("Selecciona una categoría.");
 
-      // Subir imagen si se seleccionó una nueva
       let imagenUrl = form.imagen_url;
       if (imageFile) {
-        const uploaded = await uploadImage(imageFile);
-        if (uploaded) imagenUrl = uploaded;
+        const ext = imageFile.name.split(".").pop();
+        const fileName = `inventario/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from("uploads").upload(fileName, imageFile);
+        if (!uploadError) {
+          const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
+          imagenUrl = data.publicUrl;
+        }
       }
 
       const payload = { ...form, imagen_url: imagenUrl };
+      const { error: dbError } = item 
+        ? await supabase.from("inventario").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", item.id)
+        : await supabase.from("inventario").insert(payload);
 
-      if (item) {
-        // --- Actualizar artículo existente ---
-        const { error: updateError } = await supabase
-          .from("inventario")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", item.id);
-
-        if (updateError) throw new Error(updateError.message);
-      } else {
-        // --- Crear nuevo artículo ---
-        const { error: insertError } = await supabase
-          .from("inventario")
-          .insert(payload);
-
-        if (insertError) throw new Error(insertError.message);
-      }
-
+      if (dbError) throw dbError;
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message ?? "Ocurrió un error inesperado.");
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // -------------------------------------------------------------------------
-  // Si el modal está cerrado, no renderizar nada
-  // -------------------------------------------------------------------------
   if (!isOpen) return null;
 
   return (
-    /* Overlay */
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      {/* Panel del modal */}
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Encabezado */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {item ? "Editar artículo" : "Nuevo artículo"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <Package size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">{item ? "Editar Artículo" : "Nuevo Artículo"}</h2>
+              <p className="text-xs text-slate-500 font-medium tracking-wide">GESTIÓN DE INVENTARIO</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400"><X size={20} /></button>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
-          {/* Mensaje de error */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 bg-white">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-              {error}
+            <div className="p-3 bg-red-50 border-l-4 border-red-500 text-red-700 text-sm rounded-r-lg flex items-center gap-2">
+              <Info size={16} /> {error}
             </div>
           )}
 
-          {/* Fila: Clave + Nombre */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Clave <span className="text-red-500">*</span>
-              </label>
-              <input
-                name="clave"
-                value={form.clave}
-                onChange={handleChange}
-                placeholder="Ej: HERR-001"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+          {/* Fila 1: Clave y Nombre */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><Hash size={14} className="text-slate-400" /> Clave *</label>
+              <input name="clave" value={form.clave} onChange={handleChange} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Ej: HERR-001" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Nombre <span className="text-red-500">*</span>
-              </label>
-              <input
-                name="nombre"
-                value={form.nombre}
-                onChange={handleChange}
-                placeholder="Ej: Llave de torsión 1/2"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><Tag size={14} className="text-slate-400" /> Nombre *</label>
+              <input name="nombre" value={form.nombre} onChange={handleChange} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Nombre del producto" />
             </div>
           </div>
 
-          {/* Descripción */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Descripción</label>
-            <textarea
-              name="descripcion"
-              value={form.descripcion}
-              onChange={handleChange}
-              rows={2}
-              placeholder="Descripción opcional del artículo..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
+          {/* Fila 2: Descripción */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 uppercase">Descripción</label>
+            <textarea name="descripcion" value={form.descripcion} onChange={handleChange} rows={2} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none" placeholder="Detalles técnicos o notas..." />
           </div>
 
-          {/* Fila: Marca + Modelo + Número de serie */}
+          {/* Fila 3: Marca, Modelo, Serie */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-slate-600">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase">Marca</label>
+              <input name="marca" value={form.marca} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase">Modelo</label>
+              <input name="modelo" value={form.modelo} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase">N° Serie</label>
+              <input name="numero_serie" value={form.numero_serie} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+            </div>
+          </div>
+
+          {/* Fila 4: Stocks (Panel destacado) */}
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="space-y-1.5 text-center sm:text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Stock Total</label>
+              <input type="number" name="stock_total" value={form.stock_total} onChange={handleChange} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-blue-600 outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="space-y-1.5 text-center sm:text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Disponible</label>
+              <input type="number" name="stock_disponible" value={form.stock_disponible} onChange={handleChange} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div className="space-y-1.5 text-center sm:text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mínimo</label>
+              <input type="number" name="stock_minimo" value={form.stock_minimo} onChange={handleChange} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-red-600 outline-none focus:ring-2 focus:ring-red-500" />
+            </div>
+          </div>
+
+          {/* Fila 5: Unidad Medida, Ubicación y Estado */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Marca</label>
-              <input
-                name="marca"
-                value={form.marca}
-                onChange={handleChange}
-                placeholder="Ej: Stanley"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><Ruler size={14} className="text-slate-400" /> Unidad</label>
+              <input name="unidad_medida" value={form.unidad_medida} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ej: pieza" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Modelo</label>
-              <input
-                name="modelo"
-                value={form.modelo}
-                onChange={handleChange}
-                placeholder="Ej: XL-500"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><MapPin size={14} className="text-slate-400" /> Ubicación</label>
+              <input name="ubicacion" value={form.ubicacion} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500" placeholder="Estante B-12" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">N° Serie</label>
-              <input
-                name="numero_serie"
-                value={form.numero_serie}
-                onChange={handleChange}
-                placeholder="Ej: SN-123456"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Fila: Stocks */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Stock total</label>
-              <input
-                type="number"
-                name="stock_total"
-                value={form.stock_total}
-                onChange={handleChange}
-                min={0}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Stock disponible</label>
-              <input
-                type="number"
-                name="stock_disponible"
-                value={form.stock_disponible}
-                onChange={handleChange}
-                min={0}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Stock mínimo</label>
-              <input
-                type="number"
-                name="stock_minimo"
-                value={form.stock_minimo}
-                onChange={handleChange}
-                min={0}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Fila: Unidad + Ubicación + Estado */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Unidad medida</label>
-              <input
-                name="unidad_medida"
-                value={form.unidad_medida}
-                onChange={handleChange}
-                placeholder="pieza, litro, caja..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Ubicación</label>
-              <input
-                name="ubicacion"
-                value={form.ubicacion}
-                onChange={handleChange}
-                placeholder="Ej: Taller A / Estante 3"
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Estado</label>
-              <select
-                name="estado"
-                value={form.estado}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><BarChart3 size={14} className="text-slate-400" /> Estado</label>
+              <select name="estado" value={form.estado} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 capitalize">
                 <option value="activo">Activo</option>
                 <option value="inactivo">Inactivo</option>
-                <option value="en_reparacion">En reparación</option>
+                <option value="en_reparacion">Reparación</option>
                 <option value="mantenimiento">Mantenimiento</option>
-                <option value="dado_de_baja">Dado de baja</option>
               </select>
             </div>
           </div>
 
-          {/* Fila: Categoría + Departamento */}
+          {/* Fila 6: Categoría y Departamento */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Categoría <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="categoria_id"
-                value={form.categoria_id}
-                onChange={handleChange}
-                required
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value={0} disabled>Selecciona una categoría</option>
-                {categorias.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                ))}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><Layers size={14} className="text-slate-400" /> Categoría *</label>
+              <select name="categoria_id" value={form.categoria_id} onChange={handleChange} required className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <option value={0} disabled>Seleccionar...</option>
+                {categorias.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">Departamento</label>
-              <select
-                name="departamento_id"
-                value={form.departamento_id ?? ""}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5"><Home size={14} className="text-slate-400" /> Departamento</label>
+              <select name="departamento_id" value={form.departamento_id ?? ""} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Sin asignar</option>
-                {departamentos.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nombre}</option>
-                ))}
+                {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
               </select>
             </div>
           </div>
 
-          {/* Imagen */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Imagen del artículo</label>
-            <div className="flex items-center gap-4">
-              {imagePreview && (
-                <img
-                  src={imagePreview}
-                  alt="Vista previa"
-                  className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                />
-              )}
-              <label className="cursor-pointer flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 border border-blue-200 hover:border-blue-300 rounded-lg px-4 py-2 transition-colors">
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {imagePreview ? "Cambiar imagen" : "Subir imagen"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-              </label>
+          {/* Sección: Imagen */}
+          <div className="space-y-2 pt-2">
+            <label className="text-xs font-bold text-slate-700 uppercase">Imagen del artículo</label>
+            <div className="flex items-center gap-5 p-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/30">
+              <div className="w-24 h-24 rounded-xl bg-white border border-slate-100 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <ImageIcon size={32} className="text-slate-200" />}
+              </div>
+              <div>
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-blue-600 hover:bg-blue-50 transition-all shadow-sm">
+                  Subir Foto <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                </label>
+                <p className="mt-2 text-[10px] text-slate-400 font-medium">Recomendado: 800x800px (Máx 5MB)</p>
+              </div>
             </div>
-          </div>
-
-          {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isLoading && (
-                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              )}
-              {isLoading ? "Guardando..." : item ? "Guardar cambios" : "Crear artículo"}
-            </button>
           </div>
         </form>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3 bg-slate-50/50">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors">Cancelar</button>
+          <button onClick={handleSubmit} disabled={isLoading} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-200 transition-all disabled:opacity-50 flex items-center gap-2">
+            {isLoading ? <Loader2 size={18} className="animate-spin" /> : null}
+            {item ? "Guardar Cambios" : "Registrar Artículo"}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,373 +1,237 @@
 /**
  * @file app/historial/page.tsx
- * @description Historial de movimientos del inventario.
- * Filtros funcionales por tipo de movimiento, rango de fechas y búsqueda por texto.
- * Muestra quién hizo cada movimiento, qué artículo y los stocks antes/después.
+ * @description Vista de auditoría completa: todos los movimientos del inventario con filtros avanzados.
  */
-
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from '@/lib/client'
+import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
+import { Search, Filter, Download, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal } from "lucide-react";
 
-import type { HistorialMovimiento, TipoMovimientoEnum } from "@/lib/supabase";
-
-// Cliente Supabase del navegador — instancia única por módulo
-const supabase = createClient()
-
-// ---------------------------------------------------------------------------
-// Configuración visual por tipo de movimiento
-// ---------------------------------------------------------------------------
-const TIPO_MOV: Record<TipoMovimientoEnum, { label: string; cls: string; icon: string }> = {
-  entrada:    { label: "Entrada",    cls: "bg-emerald-100 text-emerald-700", icon: "↓" },
-  salida:     { label: "Salida",     cls: "bg-orange-100 text-orange-700",   icon: "↑" },
-  prestamo:   { label: "Préstamo",   cls: "bg-blue-100 text-blue-700",       icon: "→" },
-  devolucion: { label: "Devolución", cls: "bg-teal-100 text-teal-700",       icon: "↩" },
-  ajuste:     { label: "Ajuste",     cls: "bg-purple-100 text-purple-700",   icon: "≈" },
-  baja:       { label: "Baja",       cls: "bg-red-100 text-red-700",         icon: "✕" },
+const TIPO_CONFIG: Record<string, { label: string; cls: string; signo: string }> = {
+  entrada:    { label: "Entrada",    cls: "bg-emerald-100 text-emerald-700", signo: "+" },
+  salida:     { label: "Salida",     cls: "bg-orange-100 text-orange-700",   signo: "−" },
+  prestamo:   { label: "Préstamo",   cls: "bg-blue-100 text-blue-700",       signo: "−" },
+  devolucion: { label: "Devolución", cls: "bg-teal-100 text-teal-700",       signo: "+" },
+  ajuste:     { label: "Ajuste",     cls: "bg-purple-100 text-purple-700",   signo: "~" },
+  baja:       { label: "Baja",       cls: "bg-red-100 text-red-700",         signo: "−" },
 };
 
-// ---------------------------------------------------------------------------
-// Componente principal
-// ---------------------------------------------------------------------------
 export default function HistorialPage() {
-  const [movimientos, setMovimientos] = useState<HistorialMovimiento[]>([]);
-  const [isLoading, setIsLoading]     = useState(true);
-  const [total, setTotal]             = useState(0);
-
-  // Filtros
-  const [search, setSearch]         = useState("");
-  const [tipoFilter, setTipoFilter] = useState<string>("");
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch]       = useState("");
+  const [tipoFilter, setTipoFilter] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
-
-  // Paginación
-  const [page, setPage] = useState(1);
+  const [page, setPage]           = useState(1);
+  const [showFilters, setShowFilters] = useState(false);
   const PER_PAGE = 20;
 
-  // -------------------------------------------------------------------------
-  // Cargar historial con todos los filtros aplicados
-  // -------------------------------------------------------------------------
   const loadHistorial = useCallback(async () => {
     setIsLoading(true);
+    const supabase = createClient();
     try {
-      let query = supabase
+      let q = supabase
         .from("historial_inventario")
         .select(`
           *,
-          inventario (id, nombre, clave),
-          usuarios (nombre_completo)
-        `, { count: "exact" })
+          inventario(nombre, clave),
+          usuarios(nombre_completo)
+        `)
         .order("fecha", { ascending: false })
         .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
 
-      // Filtro por tipo de movimiento
-      if (tipoFilter) {
-        query = query.eq("tipo_movimiento", tipoFilter);
-      }
+      if (tipoFilter) q = q.eq("tipo_movimiento", tipoFilter);
+      if (fechaDesde) q = q.gte("fecha", fechaDesde);
+      if (fechaHasta) q = q.lte("fecha", fechaHasta + "T23:59:59");
 
-      // Filtro por rango de fechas
-      if (fechaDesde) {
-        query = query.gte("fecha", new Date(fechaDesde).toISOString());
-      }
-      if (fechaHasta) {
-        const hasta = new Date(fechaHasta);
-        hasta.setHours(23, 59, 59, 999);
-        query = query.lte("fecha", hasta.toISOString());
-      }
-
-      const { data, count, error } = await query;
+      const { data, error } = await q;
       if (error) throw error;
-
-      let result = (data as HistorialMovimiento[]) ?? [];
-
-      // Filtro por texto (nombre de artículo o usuario) — en cliente
-      if (search.trim()) {
-        const s = search.toLowerCase();
-        result = result.filter(
-          (m) =>
-            (m.inventario as any)?.nombre?.toLowerCase().includes(s) ||
-            (m.inventario as any)?.clave?.toLowerCase().includes(s) ||
-            (m.usuarios as any)?.nombre_completo?.toLowerCase().includes(s)
-        );
-      }
-
-      setMovimientos(result);
-      setTotal(count ?? 0);
+      setHistorial(data ?? []);
     } catch (err) {
-      console.error("Error cargando historial:", err);
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [search, tipoFilter, fechaDesde, fechaHasta, page]);
+  }, [tipoFilter, fechaDesde, fechaHasta, page]);
 
-  // Debounce para la búsqueda de texto
-  useEffect(() => {
-    const t = setTimeout(loadHistorial, 300);
-    return () => clearTimeout(t);
-  }, [loadHistorial]);
+  useEffect(() => { loadHistorial(); }, [loadHistorial]);
 
-  // -------------------------------------------------------------------------
-  // Limpiar todos los filtros
-  // -------------------------------------------------------------------------
-  const limpiarFiltros = () => {
-    setSearch("");
-    setTipoFilter("");
-    setFechaDesde("");
-    setFechaHasta("");
-    setPage(1);
+  const filtered = historial.filter(m => {
+    const term = search.toLowerCase();
+    return !term ||
+      m.inventario?.nombre?.toLowerCase().includes(term) ||
+      m.inventario?.clave?.toLowerCase().includes(term) ||
+      m.usuarios?.nombre_completo?.toLowerCase().includes(term);
+  });
+
+  const exportarCSV = () => {
+    const headers = ["ID", "Artículo", "Clave", "Tipo", "Cantidad", "Stock Antes", "Stock Después", "Usuario", "Fecha", "Observaciones"];
+    const rows = filtered.map(m => [
+      m.id,
+      m.inventario?.nombre ?? "",
+      m.inventario?.clave ?? "",
+      m.tipo_movimiento,
+      m.cantidad,
+      m.stock_antes ?? "",
+      m.stock_despues ?? "",
+      m.usuarios?.nombre_completo ?? "",
+      new Date(m.fecha).toLocaleString("es-MX"),
+      m.observaciones ?? "",
+    ]);
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `historial_${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const hayFiltros = search || tipoFilter || fechaDesde || fechaHasta;
-
-  // -------------------------------------------------------------------------
-  // Formatear fecha y hora
-  // -------------------------------------------------------------------------
-  const fmtFecha = (f: string) =>
-    new Date(f).toLocaleString("es-MX", {
-      day: "2-digit", month: "short", year: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
+  const formatFecha = (f: string) =>
+    new Date(f).toLocaleString("es-MX", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-
-      {/* Contenido Principal con margen responsive */}
-      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
+      <main className="flex-1 lg:ml-64 w-full">
         <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
 
-      {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Historial de movimientos</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Registro completo de entradas, salidas, préstamos y ajustes de inventario
-        </p>
-      </div>
-
-      {/* Panel de filtros */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-5">
-        <div className="flex flex-col gap-3">
-          {/* Primera fila: búsqueda + tipo */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                placeholder="Buscar por artículo, clave o usuario..."
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Historial</h1>
+              <p className="text-slate-500 font-medium mt-1">Auditoría completa de todos los movimientos</p>
             </div>
-            <select
-              value={tipoFilter}
-              onChange={(e) => { setTipoFilter(e.target.value); setPage(1); }}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-            >
-              <option value="">Todos los tipos</option>
-              {Object.entries(TIPO_MOV).map(([val, { label }]) => (
-                <option key={val} value={val}>{label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Segunda fila: fechas + limpiar */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center">
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-xs text-gray-500 whitespace-nowrap">Desde:</label>
-              <input
-                type="date"
-                value={fechaDesde}
-                onChange={(e) => { setFechaDesde(e.target.value); setPage(1); }}
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-xs text-gray-500 whitespace-nowrap">Hasta:</label>
-              <input
-                type="date"
-                value={fechaHasta}
-                onChange={(e) => { setFechaHasta(e.target.value); setPage(1); }}
-                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            {hayFiltros && (
-              <button
-                onClick={limpiarFiltros}
-                className="text-sm text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg px-3 py-2 whitespace-nowrap transition-colors"
-              >
-                Limpiar filtros
+            <div className="flex gap-2">
+              <button onClick={() => setShowFilters(f => !f)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm border transition-all ${showFilters ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"}`}>
+                <Filter size={16} /> Filtros
               </button>
-            )}
+              <button onClick={exportarCSV}
+                className="inline-flex items-center gap-2 bg-white text-slate-600 border border-slate-200 px-4 py-2.5 rounded-xl font-semibold text-sm hover:border-emerald-400 hover:text-emerald-600 transition-all">
+                <Download size={16} /> Exportar
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Chips de filtros activos */}
-        {hayFiltros && (
-          <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-            {tipoFilter && (
-              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${TIPO_MOV[tipoFilter as TipoMovimientoEnum]?.cls}`}>
-                Tipo: {TIPO_MOV[tipoFilter as TipoMovimientoEnum]?.label}
-              </span>
-            )}
-            {fechaDesde && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
-                Desde: {fechaDesde}
-              </span>
-            )}
-            {fechaHasta && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
-                Hasta: {fechaHasta}
-              </span>
-            )}
-            {search && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                Búsqueda: "{search}"
-              </span>
-            )}
+          {/* Filtros */}
+          <div className={`bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6 space-y-4 transition-all ${showFilters ? "block" : "hidden"}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative sm:col-span-2">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar por artículo, clave o usuario..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400" />
+              </div>
+              <select value={tipoFilter} onChange={e => { setTipoFilter(e.target.value); setPage(1); }}
+                className="py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 font-medium outline-none focus:ring-2 focus:ring-blue-100 cursor-pointer">
+                <option value="">Todos los tipos</option>
+                {Object.entries(TIPO_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="date" value={fechaDesde} onChange={e => { setFechaDesde(e.target.value); setPage(1); }}
+                  className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-100" />
+                <input type="date" value={fechaHasta} onChange={e => { setFechaHasta(e.target.value); setPage(1); }}
+                  className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 outline-none focus:ring-2 focus:ring-blue-100" />
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Tabla de historial */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {/* Contador */}
-        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <p className="text-xs text-gray-400">
-            {isLoading ? "Cargando..." : `${total} movimiento(s) encontrado(s)`}
-          </p>
-        </div>
+          {/* Si no hay filtros abiertos, mostrar barra simple */}
+          {!showFilters && (
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Buscar por artículo, clave o usuario..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400" />
+              </div>
+            </div>
+          )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tipo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Artículo</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Usuario</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cantidad</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Stock antes</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Stock después</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Fecha</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <td key={j} className="px-5 py-4">
-                        <div className="h-4 bg-gray-100 rounded animate-pulse" />
-                      </td>
-                    ))}
+          {/* Tabla */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Artículo</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Tipo</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Cantidad</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden md:table-cell">Stock</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Usuario</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Fecha</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden xl:table-cell">Notas</th>
                   </tr>
-                ))
-              ) : movimientos.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm">
-                    No se encontraron movimientos con los filtros aplicados
-                  </td>
-                </tr>
-              ) : (
-                movimientos.map((mov) => {
-                  const tipo = TIPO_MOV[mov.tipo_movimiento] ?? {
-                    label: mov.tipo_movimiento,
-                    cls: "bg-gray-100 text-gray-600",
-                    icon: "•",
-                  };
-
-                  return (
-                    <tr key={mov.id} className="hover:bg-gray-50/50 transition-colors">
-                      {/* Tipo */}
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${tipo.cls}`}>
-                          <span className="font-bold">{tipo.icon}</span>
-                          {tipo.label}
-                        </span>
-                      </td>
-
-                      {/* Artículo */}
-                      <td className="px-4 py-3.5">
-                        <p className="font-medium text-gray-900">
-                          {(mov.inventario as any)?.nombre ?? "—"}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {(mov.inventario as any)?.clave ?? ""}
-                        </p>
-                      </td>
-
-                      {/* Usuario */}
-                      <td className="px-4 py-3.5 text-gray-600 hidden sm:table-cell">
-                        {(mov.usuarios as any)?.nombre_completo ?? "—"}
-                      </td>
-
-                      {/* Cantidad */}
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="font-semibold text-gray-900">×{mov.cantidad}</span>
-                      </td>
-
-                      {/* Stock antes */}
-                      <td className="px-4 py-3.5 text-center text-gray-500 hidden md:table-cell">
-                        {mov.stock_antes ?? "—"}
-                      </td>
-
-                      {/* Stock después */}
-                      <td className="px-4 py-3.5 text-center hidden md:table-cell">
-                        {mov.stock_despues !== undefined && mov.stock_despues !== null ? (
-                          <span
-                            className={
-                              mov.stock_despues < (mov.stock_antes ?? 0)
-                                ? "text-red-600 font-medium"
-                                : "text-emerald-600 font-medium"
-                            }
-                          >
-                            {mov.stock_despues}
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {isLoading ? (
+                    [...Array(8)].map((_, i) => (
+                      <tr key={i}><td colSpan={7} className="px-6 py-4">
+                        <div className="h-4 bg-slate-100 rounded-lg animate-pulse w-full" />
+                      </td></tr>
+                    ))
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={7} className="py-16 text-center text-slate-400 text-sm font-medium">
+                      No hay registros con los filtros actuales
+                    </td></tr>
+                  ) : filtered.map((m) => {
+                    const cfg = TIPO_CONFIG[m.tipo_movimiento] ?? TIPO_CONFIG.ajuste;
+                    return (
+                      <tr key={m.id} className="hover:bg-slate-50/80 transition-colors text-sm">
+                        <td className="px-6 py-3">
+                          <p className="font-bold text-slate-800">{m.inventario?.nombre ?? "—"}</p>
+                          <p className="text-[11px] font-mono text-slate-400">{m.inventario?.clave}</p>
+                        </td>
+                        <td className="px-6 py-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${cfg.cls}`}>
+                            {cfg.label}
                           </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
+                        </td>
+                        <td className="px-6 py-3 text-center font-black text-slate-700">
+                          {cfg.signo}{m.cantidad}
+                        </td>
+                        <td className="px-6 py-3 hidden md:table-cell">
+                          {m.stock_antes != null && (
+                            <span className="text-xs text-slate-500">
+                              {m.stock_antes} <span className="text-slate-300">→</span> <span className="font-bold text-slate-700">{m.stock_despues}</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 hidden lg:table-cell text-slate-600">
+                          {m.usuarios?.nombre_completo ?? "—"}
+                        </td>
+                        <td className="px-6 py-3 text-[11px] text-slate-500 whitespace-nowrap">
+                          {formatFecha(m.fecha)}
+                        </td>
+                        <td className="px-6 py-3 hidden xl:table-cell text-[11px] text-slate-400 max-w-xs truncate">
+                          {m.observaciones ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
-                      {/* Fecha */}
-                      <td className="px-4 py-3.5 text-gray-500 text-xs hidden lg:table-cell">
-                        {fmtFecha(mov.fecha)}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Paginación */}
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
-          <p className="text-xs text-gray-400">
-            Página {page} · {PER_PAGE} por página
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
-            >
-              ← Anterior
-            </button>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={movimientos.length < PER_PAGE}
-              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors"
-            >
-              Siguiente →
-            </button>
+            {/* Paginación */}
+            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-500">
+                <span className="text-slate-900 font-bold">{filtered.length}</span> registros en esta página
+              </p>
+              <div className="flex gap-2">
+                <button disabled={page === 1} onClick={() => setPage(p => p - 1)}
+                  className="px-4 py-2 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 transition-all">Anterior</button>
+                <button disabled={historial.length < PER_PAGE} onClick={() => setPage(p => p + 1)}
+                  className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 disabled:opacity-40 transition-all">Siguiente</button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-       </div>
       </main>
     </div>
   );

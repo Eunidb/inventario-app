@@ -1,422 +1,440 @@
+/**
+ * @file app/configuracion/page.tsx
+ * @description Configuración del sistema: categorías, departamentos y gestión de usuarios.
+ */
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from '@/lib/client'
+import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
-import ModalConfirmar from "@/components/ModalConfirmar"; // Importamos el nuevo componente
+import {
+  Settings, Tag, Building2, Users, Plus, Pencil, Trash2,
+  X, Loader2, Save, ChevronRight, Shield, UserCheck
+} from "lucide-react";
 
-import type { Usuario, Departamento, Categoria, RolEnum } from "@/lib/supabase";
+type Tab = "categorias" | "departamentos" | "usuarios";
 
-const supabase = createClient()
-
-type Seccion = "perfil" | "departamentos" | "categorias" | "usuarios";
+const ROL_CLS: Record<string, string> = {
+  admin:   "bg-purple-50 text-purple-700 border-purple-100",
+  usuario: "bg-blue-50 text-blue-700 border-blue-100",
+  tecnico: "bg-teal-50 text-teal-700 border-teal-100",
+};
 
 export default function ConfiguracionPage() {
-  const [seccion, setSeccion]   = useState<Seccion>("perfil");
-  const [usuario, setUsuario]   = useState<Usuario | null>(null);
-  const [esAdmin, setEsAdmin]   = useState(false);
-  const [cargando, setCargando] = useState(true);
+  const [tab, setTab] = useState<Tab>("categorias");
+  const [categorias, setCategorias]     = useState<any[]>([]);
+  const [departamentos, setDepartamentos] = useState<any[]>([]);
+  const [usuarios, setUsuarios]         = useState<any[]>([]);
+  const [loading, setLoading]           = useState(false);
 
-  // Datos de secciones
-  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
-  const [categorias, setCategorias]       = useState<Categoria[]>([]);
-  const [usuarios, setUsuarios]           = useState<Usuario[]>([]);
+  // Modales
+  const [modalCat, setModalCat]   = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [modalDept, setModalDept] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
+  const [modalUser, setModalUser] = useState<{ open: boolean; item: any | null }>({ open: false, item: null });
 
-  // Estados de formularios
-  const [nombreEdit, setNombreEdit]     = useState("");
-  const [saving, setSaving]             = useState(false);
-  const [mensaje, setMensaje]           = useState<string | null>(null);
-  const [msgTipo, setMsgTipo]           = useState<"ok" | "err">("ok");
+  const supabase = createClient();
 
-  // Estados para el Modal de Confirmación
-  const [modalOpen, setModalOpen] = useState(false);
-  const [itemAEliminar, setItemAEliminar] = useState<{ id: number; tipo: "dept" | "cat" } | null>(null);
-
-  const [nuevoDeptNombre, setNuevoDeptNombre] = useState("");
-  const [nuevoDeptResp, setNuevoDeptResp]     = useState("");
-  const [nuevoDeptDesc, setNuevoDeptDesc]     = useState("");
-
-  const [nuevaCatNombre, setNuevaCatNombre] = useState("");
-  const [nuevaCatDesc, setNuevaCatDesc]     = useState("");
-
-  useEffect(() => {
-    const init = async () => {
-      setCargando(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: perfil } = await supabase
-        .from("usuarios")
-        .select(`*, departamentos(nombre)`)
-        .eq("id", user.id)
-        .single();
-
-      if (perfil) {
-        setUsuario(perfil as Usuario);
-        setNombreEdit(perfil.nombre_completo);
-        setEsAdmin(perfil.rol === "admin");
-      }
-      setCargando(false);
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
-    if (!esAdmin) return;
-    if (seccion === "departamentos") {
-      supabase.from("departamentos").select("*").order("nombre").then(({ data }) => setDepartamentos(data ?? []));
-    } else if (seccion === "categorias") {
-      supabase.from("categorias").select("*").order("nombre").then(({ data }) => setCategorias(data ?? []));
-    } else if (seccion === "usuarios") {
-      supabase.from("usuarios").select("*, departamentos(nombre)").order("nombre_completo").then(({ data }) => setUsuarios(data as Usuario[] ?? []));
-    }
-  }, [seccion, esAdmin]);
-
-  const showMsg = (texto: string, tipo: "ok" | "err" = "ok") => {
-    setMensaje(texto);
-    setMsgTipo(tipo);
-    setTimeout(() => setMensaje(null), 3500);
+  const loadData = async () => {
+    setLoading(true);
+    const [{ data: cats }, { data: deptos }, { data: users }] = await Promise.all([
+      supabase.from("categorias").select("*").order("nombre"),
+      supabase.from("departamentos").select("*").order("nombre"),
+      supabase.from("usuarios").select("*, departamentos(nombre)").order("nombre_completo"),
+    ]);
+    setCategorias(cats ?? []);
+    setDepartamentos(deptos ?? []);
+    setUsuarios(users ?? []);
+    setLoading(false);
   };
 
-  const handleGuardarNombre = async () => {
-    if (!nombreEdit.trim()) return;
-    setSaving(true);
-    const { error } = await supabase
-      .from("usuarios")
-      .update({ nombre_completo: nombreEdit, updated_at: new Date().toISOString() })
-      .eq("id", usuario!.id);
-    setSaving(false);
-    if (error) showMsg("Error al guardar: " + error.message, "err");
-    else showMsg("Nombre actualizado correctamente.");
-  };
+  useEffect(() => { loadData(); }, []);
 
-  // --- Lógica de Eliminación Mejorada ---
-  
-  const abrirConfirmacion = (id: number, tipo: "dept" | "cat") => {
-    setItemAEliminar({ id, tipo });
-    setModalOpen(true);
-  };
-
-  const ejecutarEliminacion = async () => {
-    if (!itemAEliminar) return;
-    const { id, tipo } = itemAEliminar;
-    const tabla = tipo === "dept" ? "departamentos" : "categorias";
-
-    const { error } = await supabase.from(tabla).delete().eq("id", id);
-    
-    if (error) showMsg("Error: " + error.message, "err");
-    else {
-      showMsg(`${tipo === "dept" ? "Departamento" : "Categoría"} eliminado.`);
-      if (tipo === "dept") setDepartamentos(prev => prev.filter(d => d.id !== id));
-      else setCategorias(prev => prev.filter(c => c.id !== id));
-    }
-    setItemAEliminar(null);
-  };
-
-  // --- Fin Lógica Eliminación ---
-
-  const handleAgregarDept = async () => {
-    if (!nuevoDeptNombre.trim()) return;
-    const { error } = await supabase.from("departamentos").insert({
-      nombre: nuevoDeptNombre.trim(),
-      responsable: nuevoDeptResp.trim() || null,
-      descripcion: nuevoDeptDesc.trim() || null,
-    });
-    if (error) showMsg("Error: " + error.message, "err");
-    else {
-      showMsg("Departamento agregado.");
-      setNuevoDeptNombre(""); setNuevoDeptResp(""); setNuevoDeptDesc("");
-      const { data } = await supabase.from("departamentos").select("*").order("nombre");
-      setDepartamentos(data ?? []);
-    }
-  };
-
-  const handleAgregarCat = async () => {
-    if (!nuevaCatNombre.trim()) return;
-    const { error } = await supabase.from("categorias").insert({
-      nombre: nuevaCatNombre.trim(),
-      descripcion: nuevaCatDesc.trim() || null,
-    });
-    if (error) showMsg("Error: " + error.message, "err");
-    else {
-      showMsg("Categoría agregada.");
-      setNuevaCatNombre(""); setNuevaCatDesc("");
-      const { data } = await supabase.from("categorias").select("*").order("nombre");
-      setCategorias(data ?? []);
-    }
-  };
-
-  const handleCambiarRol = async (userId: string, nuevoRol: RolEnum) => {
-    const { error } = await supabase
-      .from("usuarios")
-      .update({ rol: nuevoRol, updated_at: new Date().toISOString() })
-      .eq("id", userId);
-    if (error) showMsg("Error: " + error.message, "err");
-    else {
-      showMsg("Rol actualizado.");
-      setUsuarios(prev => prev.map(u => (u.id === userId ? { ...u, rol: nuevoRol } : u)));
-    }
-  };
-
-  const handleToggleActivo = async (userId: string, activo: boolean) => {
-    const { error } = await supabase
-      .from("usuarios")
-      .update({ activo: !activo, updated_at: new Date().toISOString() })
-      .eq("id", userId);
-    if (error) showMsg("Error: " + error.message, "err");
-    else {
-      showMsg(`Usuario ${!activo ? "activado" : "desactivado"}.`);
-      setUsuarios(prev => prev.map(u => (u.id === userId ? { ...u, activo: !activo } : u)));
-    }
-  };
-
-  if (cargando) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="text-gray-400 text-sm animate-pulse">Cargando configuración...</div>
-      </div>
-    );
-  }
-
-  if (!esAdmin) {
-    return (
-      <div className="p-6 lg:p-8 max-w-2xl mx-auto h-screen flex items-center">
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center w-full shadow-sm">
-          <div className="text-5xl mb-4">🔒</div>
-          <h2 className="text-xl font-bold text-red-800 mb-2">Acceso restringido</h2>
-          <p className="text-sm text-red-600">Esta sección es exclusiva para administradores.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const secciones: { id: Seccion; label: string }[] = [
-    { id: "perfil", label: "Mi perfil" },
-    { id: "departamentos", label: "Departamentos" },
-    { id: "categorias", label: "Categorías" },
-    { id: "usuarios", label: "Usuarios" },
+  const TABS = [
+    { id: "categorias" as Tab,    label: "Categorías",    Icon: Tag,       count: categorias.length },
+    { id: "departamentos" as Tab, label: "Departamentos", Icon: Building2, count: departamentos.length },
+    { id: "usuarios" as Tab,      label: "Usuarios",      Icon: Users,     count: usuarios.length },
   ];
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
-        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
-          
+      <main className="flex-1 lg:ml-64 w-full">
+        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-5xl mx-auto">
+
+          {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Configuración</h1>
-            <p className="text-gray-500 mt-1">Administra los parámetros globales del sistema de inventario.</p>
+            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+              <Settings size={28} className="text-slate-500" />
+              Configuración
+            </h1>
+            <p className="text-slate-500 font-medium mt-1">Administra categorías, departamentos y usuarios del sistema</p>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-8">
-            {/* Menú de Navegación Interna */}
-            <div className="lg:w-64 flex-shrink-0">
-              <nav className="bg-white rounded-2xl border border-gray-200 shadow-sm p-2 space-y-1">
-                {secciones.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSeccion(s.id)}
-                    className={`w-full text-left px-4 py-3 text-sm font-semibold rounded-xl transition-all ${
-                      seccion === s.id
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </nav>
+          {/* Tabs */}
+          <div className="flex gap-2 mb-6 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
+            {TABS.map(({ id, label, Icon, count }) => (
+              <button key={id} onClick={() => setTab(id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === id ? "bg-blue-600 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>
+                <Icon size={15} />
+                {label}
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${tab === id ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-500"}`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Panel */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+            {/* Barra de acciones */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+              <p className="text-sm font-bold text-slate-600">
+                {tab === "categorias" ? "Categorías de inventario" :
+                 tab === "departamentos" ? "Departamentos de la empresa" : "Usuarios del sistema"}
+              </p>
+              <button
+                onClick={() => {
+                  if (tab === "categorias")     setModalCat({ open: true, item: null });
+                  if (tab === "departamentos")  setModalDept({ open: true, item: null });
+                  if (tab === "usuarios")       setModalUser({ open: true, item: null });
+                }}
+                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+              >
+                <Plus size={15} /> Nuevo
+              </button>
             </div>
 
-            {/* Panel de Contenido */}
-            <div className="flex-1 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-6 md:p-8">
-                {mensaje && (
-                  <div className={`mb-6 rounded-xl px-4 py-3 text-sm font-medium animate-in slide-in-from-top duration-300 ${
-                    msgTipo === "ok" ? "bg-emerald-50 border border-emerald-100 text-emerald-700" : "bg-red-50 border border-red-100 text-red-700"
-                  }`}>
-                    {mensaje}
-                  </div>
-                )}
-
-                {/* --- SECCIÓN PERFIL --- */}
-                {seccion === "perfil" && (
-                  <div className="max-w-xl space-y-6">
-                    <h2 className="text-lg font-bold text-gray-900">Información Personal</h2>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Nombre completo</label>
-                        <div className="flex gap-3">
-                          <input
-                            type="text"
-                            value={nombreEdit}
-                            onChange={(e) => setNombreEdit(e.target.value)}
-                            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                          />
-                          <button
-                            onClick={handleGuardarNombre}
-                            disabled={saving}
-                            className="px-6 py-2.5 bg-gray-900 hover:bg-black text-white text-sm font-bold rounded-xl disabled:opacity-50 transition-all"
-                          >
-                            {saving ? "..." : "Actualizar"}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 pt-4">
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rol Actual</p>
-                          <p className="text-sm font-bold text-gray-800 capitalize mt-1">{usuario?.rol}</p>
-                        </div>
-                        <div className="bg-slate-50 rounded-2xl p-4 border border-gray-100">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estado de cuenta</p>
-                          <p className="text-sm font-bold text-emerald-600 mt-1">{usuario?.activo ? "Verificada / Activa" : "Inactiva"}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SECCIÓN DEPARTAMENTOS --- */}
-                {seccion === "departamentos" && (
-                  <div className="space-y-8">
-                    <div className="bg-slate-50 rounded-2xl p-6 border border-gray-100">
-                      <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-tight">Crear nuevo departamento</h2>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <input
-                          placeholder="Nombre *"
-                          value={nuevoDeptNombre}
-                          onChange={(e) => setNuevoDeptNombre(e.target.value)}
-                          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <input
-                          placeholder="Responsable"
-                          value={nuevoDeptResp}
-                          onChange={(e) => setNuevoDeptResp(e.target.value)}
-                          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <input
-                        placeholder="Descripción corta"
-                        value={nuevoDeptDesc}
-                        onChange={(e) => setNuevoDeptDesc(e.target.value)}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <button onClick={handleAgregarDept} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all">
-                        Registrar Departamento
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {departamentos.map((d) => (
-                        <div key={d.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
-                          <div className="truncate mr-4">
-                            <p className="text-sm font-bold text-gray-900 truncate">{d.nombre}</p>
-                            <p className="text-xs text-gray-400">{d.responsable || "Sin responsable"}</p>
-                          </div>
-                          <button onClick={() => abrirConfirmacion(d.id, "dept")} className="p-2.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SECCIÓN CATEGORÍAS --- */}
-                {seccion === "categorias" && (
-                  <div className="space-y-8">
-                    <div className="bg-slate-50 rounded-2xl p-6 border border-gray-100">
-                      <h2 className="text-sm font-bold text-gray-900 mb-4 uppercase tracking-tight">Nueva Categoría</h2>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <input
-                          placeholder="Nombre *"
-                          value={nuevaCatNombre}
-                          onChange={(e) => setNuevaCatNombre(e.target.value)}
-                          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <input
-                          placeholder="Descripción"
-                          value={nuevaCatDesc}
-                          onChange={(e) => setNuevaCatDesc(e.target.value)}
-                          className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <button onClick={handleAgregarCat} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all">
-                        Crear Categoría
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {categorias.map((c) => (
-                        <div key={c.id} className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-gray-200 transition-all">
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{c.nombre}</p>
-                            <p className="text-xs text-gray-400">{c.descripcion || "Sin descripción"}</p>
-                          </div>
-                          <button onClick={() => abrirConfirmacion(c.id, "cat")} className="p-2.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                            <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* --- SECCIÓN USUARIOS --- */}
-                {seccion === "usuarios" && (
-                  <div className="space-y-4">
-                    <h2 className="text-lg font-bold text-gray-900">Gestión de Accesos</h2>
-                    <div className="space-y-3">
-                      {usuarios.map((u) => (
-                        <div key={u.id} className="flex flex-col md:flex-row md:items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:bg-slate-50 transition-all">
-                          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-                            {u.nombre_completo?.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-bold text-gray-900">{u.nombre_completo}</p>
-                            <p className="text-xs text-gray-400 italic">@{u.username}</p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <select
-                              value={u.rol}
-                              onChange={(e) => handleCambiarRol(u.id, e.target.value as RolEnum)}
-                              className="text-xs font-bold border border-gray-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                            >
-                              <option value="usuario">Usuario</option>
-                              <option value="tecnico">Técnico</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                            <button
-                              onClick={() => handleToggleActivo(u.id, u.activo)}
-                              className={`text-[10px] uppercase tracking-widest font-bold px-4 py-2 rounded-lg transition-all ${
-                                u.activo ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200" : "bg-red-100 text-red-600 hover:bg-red-200"
-                              }`}
-                            >
-                              {u.activo ? "Activo" : "Suspendido"}
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {loading ? (
+              <div className="p-8 space-y-3">
+                {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />)}
               </div>
-            </div>
+            ) : (
+              <div className="divide-y divide-slate-50">
+
+                {/* ─── Categorías ─── */}
+                {tab === "categorias" && categorias.map(cat => (
+                  <div key={cat.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+                        <Tag size={16} className="text-blue-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{cat.nombre}</p>
+                        {cat.descripcion && <p className="text-[11px] text-slate-400">{cat.descripcion}</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setModalCat({ open: true, item: cat })}
+                        className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => handleDeleteCat(cat.id)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {tab === "categorias" && categorias.length === 0 && <EmptyState label="categorías" />}
+
+                {/* ─── Departamentos ─── */}
+                {tab === "departamentos" && departamentos.map(dept => (
+                  <div key={dept.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                        <Building2 size={16} className="text-emerald-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{dept.nombre}</p>
+                        {dept.responsable && <p className="text-[11px] text-slate-400">Responsable: {dept.responsable}</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setModalDept({ open: true, item: dept })}
+                        className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                        <Pencil size={15} />
+                      </button>
+                      <button onClick={() => handleDeleteDept(dept.id)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {tab === "departamentos" && departamentos.length === 0 && <EmptyState label="departamentos" />}
+
+                {/* ─── Usuarios ─── */}
+                {tab === "usuarios" && usuarios.map(u => (
+                  <div key={u.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm">
+                        {u.nombre_completo?.charAt(0).toUpperCase() ?? "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{u.nombre_completo}</p>
+                        <p className="text-[11px] text-slate-400">{u.username} · {u.departamentos?.nombre ?? "Sin depto."}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border ${ROL_CLS[u.rol] ?? ROL_CLS.usuario}`}>
+                        {u.rol}
+                      </span>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setModalUser({ open: true, item: u })}
+                          className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                          <Pencil size={15} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {tab === "usuarios" && usuarios.length === 0 && <EmptyState label="usuarios" />}
+
+              </div>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Renderizado del Modal de Confirmación Único */}
-      <ModalConfirmar
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onConfirm={ejecutarEliminacion}
-        titulo={`¿Eliminar ${itemAEliminar?.tipo === "dept" ? "Departamento" : "Categoría"}?`}
-        mensaje="Esta acción es permanente y podría afectar a los activos que dependen de este registro. ¿Deseas continuar?"
+      {/* ─── Modal Categoría ─── */}
+      <ModalCategoría
+        isOpen={modalCat.open}
+        item={modalCat.item}
+        onClose={() => setModalCat({ open: false, item: null })}
+        onSaved={loadData}
       />
+
+      {/* ─── Modal Departamento ─── */}
+      <ModalDepartamento
+        isOpen={modalDept.open}
+        item={modalDept.item}
+        onClose={() => setModalDept({ open: false, item: null })}
+        onSaved={loadData}
+      />
+
+      {/* ─── Modal Usuario ─── */}
+      <ModalUsuario
+        isOpen={modalUser.open}
+        item={modalUser.item}
+        deptos={departamentos}
+        onClose={() => setModalUser({ open: false, item: null })}
+        onSaved={loadData}
+      />
+    </div>
+  );
+
+  async function handleDeleteCat(id: number) {
+    if (!confirm("¿Eliminar esta categoría?")) return;
+    await supabase.from("categorias").delete().eq("id", id);
+    loadData();
+  }
+  async function handleDeleteDept(id: number) {
+    if (!confirm("¿Eliminar este departamento?")) return;
+    await supabase.from("departamentos").delete().eq("id", id);
+    loadData();
+  }
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="py-14 text-center text-slate-400 text-sm font-medium">
+      No hay {label} registradas
+    </div>
+  );
+}
+
+/* ─────────── MODAL CATEGORÍA ─────────── */
+function ModalCategoría({ isOpen, item, onClose, onSaved }: { isOpen: boolean; item: any; onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient();
+  const [nombre, setNombre]       = useState("");
+  const [descripcion, setDesc]    = useState("");
+  const [loading, setLoading]     = useState(false);
+
+  useEffect(() => {
+    setNombre(item?.nombre ?? "");
+    setDesc(item?.descripcion ?? "");
+  }, [item, isOpen]);
+
+  if (!isOpen) return null;
+
+  const save = async () => {
+    if (!nombre.trim()) { alert("El nombre es requerido."); return; }
+    setLoading(true);
+    const payload = { nombre: nombre.trim(), descripcion: descripcion.trim() || null };
+    if (item) {
+      await supabase.from("categorias").update(payload).eq("id", item.id);
+    } else {
+      await supabase.from("categorias").insert([payload]);
+    }
+    setLoading(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <ModalShell title={item ? "Editar Categoría" : "Nueva Categoría"} Icon={Tag} onClose={onClose}>
+      <div className="space-y-4">
+        <Field label="Nombre" value={nombre} onChange={setNombre} placeholder="Ej. Herramientas" />
+        <Field label="Descripción" value={descripcion} onChange={setDesc} placeholder="Opcional..." />
+      </div>
+      <ModalFooter loading={loading} onClose={onClose} onSave={save} label={item ? "Guardar" : "Crear"} />
+    </ModalShell>
+  );
+}
+
+/* ─────────── MODAL DEPARTAMENTO ─────────── */
+function ModalDepartamento({ isOpen, item, onClose, onSaved }: { isOpen: boolean; item: any; onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient();
+  const [nombre, setNombre]         = useState("");
+  const [descripcion, setDesc]      = useState("");
+  const [responsable, setResponsable] = useState("");
+  const [loading, setLoading]       = useState(false);
+
+  useEffect(() => {
+    setNombre(item?.nombre ?? "");
+    setDesc(item?.descripcion ?? "");
+    setResponsable(item?.responsable ?? "");
+  }, [item, isOpen]);
+
+  if (!isOpen) return null;
+
+  const save = async () => {
+    if (!nombre.trim()) { alert("El nombre es requerido."); return; }
+    setLoading(true);
+    const payload = { nombre: nombre.trim(), descripcion: descripcion.trim() || null, responsable: responsable.trim() || null };
+    if (item) {
+      await supabase.from("departamentos").update(payload).eq("id", item.id);
+    } else {
+      await supabase.from("departamentos").insert([payload]);
+    }
+    setLoading(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <ModalShell title={item ? "Editar Departamento" : "Nuevo Departamento"} Icon={Building2} onClose={onClose}>
+      <div className="space-y-4">
+        <Field label="Nombre" value={nombre} onChange={setNombre} placeholder="Ej. Mantenimiento" />
+        <Field label="Responsable" value={responsable} onChange={setResponsable} placeholder="Nombre del jefe de área" />
+        <Field label="Descripción" value={descripcion} onChange={setDesc} placeholder="Opcional..." />
+      </div>
+      <ModalFooter loading={loading} onClose={onClose} onSave={save} label={item ? "Guardar" : "Crear"} />
+    </ModalShell>
+  );
+}
+
+/* ─────────── MODAL USUARIO ─────────── */
+function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: boolean; item: any; deptos: any[]; onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient();
+  const [rol, setRol]               = useState("usuario");
+  const [deptId, setDeptId]         = useState("");
+  const [loading, setLoading]       = useState(false);
+
+  useEffect(() => {
+    setRol(item?.rol ?? "usuario");
+    setDeptId(item?.departamento_id ? String(item.departamento_id) : "");
+  }, [item, isOpen]);
+
+  if (!isOpen || !item) return null;
+
+  const save = async () => {
+    setLoading(true);
+    await supabase.from("usuarios").update({
+      rol,
+      departamento_id: deptId ? parseInt(deptId) : null,
+    }).eq("id", item.id);
+    setLoading(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <ModalShell title="Editar Usuario" Icon={UserCheck} onClose={onClose}>
+      <div className="space-y-4">
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black">
+              {item.nombre_completo?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="font-bold text-slate-800">{item.nombre_completo}</p>
+              <p className="text-xs text-slate-400">{item.username}</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rol</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { val: "usuario", label: "Usuario", icon: "👤" },
+              { val: "tecnico", label: "Técnico", icon: "🔧" },
+              { val: "admin",   label: "Admin",   icon: "⚡" },
+            ].map(r => (
+              <button key={r.val} type="button" onClick={() => setRol(r.val)}
+                className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all text-center ${rol === r.val ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300"}`}>
+                <span className="block text-lg">{r.icon}</span>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Departamento</label>
+          <select value={deptId} onChange={e => setDeptId(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100">
+            <option value="">Sin departamento</option>
+            {deptos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+          </select>
+        </div>
+      </div>
+      <ModalFooter loading={loading} onClose={onClose} onSave={save} label="Guardar" />
+    </ModalShell>
+  );
+}
+
+/* ─────────── Componentes auxiliares del modal ─────────── */
+function ModalShell({ title, Icon, onClose, children }: { title: string; Icon: any; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-600 rounded-xl text-white"><Icon size={18} /></div>
+            <h2 className="text-base font-black text-slate-800">{title}</h2>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors"><X size={18} /></button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100" />
+    </div>
+  );
+}
+
+function ModalFooter({ loading, onClose, onSave, label }: { loading: boolean; onClose: () => void; onSave: () => void; label: string }) {
+  return (
+    <div className="flex justify-end gap-3 mt-6">
+      <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold text-sm hover:text-slate-700 transition-colors">
+        Cancelar
+      </button>
+      <button onClick={onSave} disabled={loading}
+        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-blue-200 disabled:opacity-60 transition-all">
+        {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+        {loading ? "Guardando..." : label}
+      </button>
     </div>
   );
 }

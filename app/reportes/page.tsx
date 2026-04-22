@@ -1,479 +1,297 @@
 /**
  * @file app/reportes/page.tsx
- * @description Módulo de reportes del sistema de inventario.
- * Genera reportes del inventario actual y de movimientos históricos.
- * Exportación a PDF (imprimible) y Excel (xlsx).
+ * @description Reportes y estadísticas del inventario con gráficas.
  */
-
 "use client";
 
-import { useState } from "react";
-import { createClient } from '@/lib/client'
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
+} from "recharts";
+import { TrendingUp, Package, RefreshCw, AlertTriangle, Download, BarChart2 } from "lucide-react";
 
-// Cliente Supabase del navegador — instancia única por módulo
-const supabase = createClient()
+const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
 
-
-// ---------------------------------------------------------------------------
-// Tipo de reporte disponible
-// ---------------------------------------------------------------------------
-type TipoReporte = "inventario" | "movimientos" | "prestamos";
-
-// ---------------------------------------------------------------------------
-// Componente principal
-// ---------------------------------------------------------------------------
 export default function ReportesPage() {
-  const [tipoReporte, setTipoReporte]   = useState<TipoReporte>("inventario");
-  const [fechaDesde, setFechaDesde]     = useState("");
-  const [fechaHasta, setFechaHasta]     = useState("");
-  const [soloActivos, setSoloActivos]   = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [mensaje, setMensaje]           = useState<{ tipo: "ok" | "err"; texto: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalArticulos: 0,
+    valorTotalUnidades: 0,
+    stockBajo: 0,
+    prestamosActivos: 0,
+    dadosBaja: 0,
+  });
+  const [porCategoria, setPorCategoria]   = useState<any[]>([]);
+  const [porEstado, setPorEstado]         = useState<any[]>([]);
+  const [movimientosMes, setMovimientosMes] = useState<any[]>([]);
+  const [topPrestados, setTopPrestados]   = useState<any[]>([]);
+  const [stockBajoItems, setStockBajoItems] = useState<any[]>([]);
 
-  // -------------------------------------------------------------------------
-  // Generar y descargar reporte en Excel (CSV compatible)
-  // -------------------------------------------------------------------------
-  const handleExportExcel = async () => {
-    setIsGenerating(true);
-    setMensaje(null);
-    try {
-      let csvContent = "";
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const supabase = createClient();
 
-      if (tipoReporte === "inventario") {
-        // --- Reporte de inventario ---
-        let q = supabase
-          .from("inventario")
-          .select(`*, categorias(nombre), departamentos(nombre)`)
-          .order("nombre");
+      // Stats generales
+      const [
+        { count: total },
+        { data: activos },
+        { count: prestamosActivos },
+        { count: dadosBaja },
+      ] = await Promise.all([
+        supabase.from("inventario").select("*", { count: "exact", head: true }),
+        supabase.from("inventario").select("stock_disponible, stock_minimo, estado, categoria_id, categorias(nombre)"),
+        supabase.from("prestamos").select("*", { count: "exact", head: true }).eq("estado", "activo"),
+        supabase.from("inventario").select("*", { count: "exact", head: true }).eq("estado", "dado_de_baja"),
+      ]);
 
-        if (soloActivos) q = q.eq("estado", "activo");
+      const stockBajoArr = (activos ?? []).filter(i => i.estado === "activo" && i.stock_disponible <= i.stock_minimo);
 
-        const { data, error } = await q;
-        if (error) throw error;
+      setStats({
+        totalArticulos: total ?? 0,
+        valorTotalUnidades: (activos ?? []).reduce((a, i) => a + Number(i.stock_disponible), 0),
+        stockBajo: stockBajoArr.length,
+        prestamosActivos: prestamosActivos ?? 0,
+        dadosBaja: dadosBaja ?? 0,
+      });
 
-        const headers = ["Clave", "Nombre", "Descripción", "Marca", "Modelo", "Categoría", "Departamento",
-          "Stock Total", "Stock Disponible", "Stock Mínimo", "Unidad", "Ubicación", "Estado"];
+      setStockBajoItems(stockBajoArr.slice(0, 8));
 
-        const rows = (data ?? []).map((i) => [
-          i.clave, i.nombre, i.descripcion ?? "", i.marca ?? "", i.modelo ?? "",
-          (i.categorias as any)?.nombre ?? "", (i.departamentos as any)?.nombre ?? "",
-          i.stock_total, i.stock_disponible, i.stock_minimo,
-          i.unidad_medida ?? "", i.ubicacion ?? "", i.estado,
-        ]);
+      // Por categoría
+      const catMap: Record<string, number> = {};
+      (activos ?? []).forEach(i => {
+        const cat = (i.categorias as any)?.nombre ?? "Sin categoría";
+        catMap[cat] = (catMap[cat] ?? 0) + 1;
+      });
+      setPorCategoria(Object.entries(catMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
 
-        csvContent = [headers, ...rows]
-          .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-          .join("\n");
+      // Por estado
+      const estadoMap: Record<string, number> = {};
+      (activos ?? []).forEach(i => { estadoMap[i.estado] = (estadoMap[i.estado] ?? 0) + 1; });
+      const estadoLabels: Record<string, string> = {
+        activo: "Activo", inactivo: "Inactivo", en_reparacion: "Reparación",
+        mantenimiento: "Mantenimiento", dado_de_baja: "Baja"
+      };
+      setPorEstado(Object.entries(estadoMap).map(([k, v]) => ({ name: estadoLabels[k] ?? k, value: v })));
 
-      } else if (tipoReporte === "movimientos") {
-        // --- Reporte de movimientos ---
-        let q = supabase
-          .from("historial_inventario")
-          .select(`*, inventario(nombre, clave), usuarios(nombre_completo)`)
-          .order("fecha", { ascending: false });
+      // Movimientos últimos 7 días
+      const hace7 = new Date();
+      hace7.setDate(hace7.getDate() - 6);
+      const { data: movData } = await supabase
+        .from("historial_inventario")
+        .select("tipo_movimiento, fecha, cantidad")
+        .gte("fecha", hace7.toISOString());
 
-        if (fechaDesde) q = q.gte("fecha", new Date(fechaDesde).toISOString());
-        if (fechaHasta) {
-          const f = new Date(fechaHasta); f.setHours(23, 59, 59, 999);
-          q = q.lte("fecha", f.toISOString());
-        }
-
-        const { data, error } = await q;
-        if (error) throw error;
-
-        const headers = ["Fecha", "Tipo Movimiento", "Artículo", "Clave", "Usuario",
-          "Cantidad", "Stock Antes", "Stock Después", "Observaciones"];
-
-        const rows = (data ?? []).map((m) => [
-          new Date(m.fecha).toLocaleString("es-MX"),
-          m.tipo_movimiento,
-          (m.inventario as any)?.nombre ?? "",
-          (m.inventario as any)?.clave ?? "",
-          (m.usuarios as any)?.nombre_completo ?? "",
-          m.cantidad, m.stock_antes ?? "", m.stock_despues ?? "",
-          m.observaciones ?? "",
-        ]);
-
-        csvContent = [headers, ...rows]
-          .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-          .join("\n");
-
-      } else {
-        // --- Reporte de préstamos ---
-        let q = supabase
-          .from("prestamos")
-          .select(`
-            *,
-            usuarios!prestamos_usuario_id_fkey(nombre_completo),
-            departamentos(nombre),
-            detalle_prestamo(cantidad, estado, inventario(nombre, clave))
-          `)
-          .order("created_at", { ascending: false });
-
-        if (fechaDesde) q = q.gte("fecha_salida", new Date(fechaDesde).toISOString());
-        if (fechaHasta) {
-          const f = new Date(fechaHasta); f.setHours(23, 59, 59, 999);
-          q = q.lte("fecha_salida", f.toISOString());
-        }
-
-        const { data, error } = await q;
-        if (error) throw error;
-
-        const headers = ["ID", "Usuario", "Departamento", "Fecha Salida", "Fecha Devolución",
-          "Estado", "Artículos", "Observaciones"];
-
-        const rows = (data ?? []).map((p) => {
-          const articulos = p.detalle_prestamo
-            ?.map((d: any) => `${d.inventario?.nombre ?? "?"} (×${d.cantidad})`)
-            .join("; ");
-          return [
-            p.id,
-            (p.usuarios as any)?.nombre_completo ?? "",
-            (p.departamentos as any)?.nombre ?? "",
-            new Date(p.fecha_salida).toLocaleString("es-MX"),
-            p.fecha_devolucion ? new Date(p.fecha_devolucion).toLocaleString("es-MX") : "",
-            p.estado, articulos ?? "", p.observaciones ?? "",
-          ];
-        });
-
-        csvContent = [headers, ...rows]
-          .map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-          .join("\n");
+      // Agrupar por día
+      const dias: Record<string, { entradas: number; salidas: number }> = {};
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        const key = d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+        dias[key] = { entradas: 0, salidas: 0 };
       }
-
-      // Descargar el archivo CSV (compatible con Excel)
-      const blob  = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-      const url   = URL.createObjectURL(blob);
-      const link  = document.createElement("a");
-      const fecha = new Date().toISOString().split("T")[0];
-      link.href     = url;
-      link.download = `reporte_${tipoReporte}_${fecha}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-
-      setMensaje({ tipo: "ok", texto: "Reporte descargado exitosamente." });
-    } catch (err: any) {
-      setMensaje({ tipo: "err", texto: err.message ?? "Error al generar el reporte." });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // -------------------------------------------------------------------------
-  // Generar reporte PDF (imprimible) — construye una página HTML y la imprime
-  // -------------------------------------------------------------------------
-  const handleExportPDF = async () => {
-    setIsGenerating(true);
-    setMensaje(null);
-    try {
-      let tableHTML = "";
-      let titulo    = "";
-
-      if (tipoReporte === "inventario") {
-        titulo = "Reporte de Inventario";
-        let q = supabase
-          .from("inventario")
-          .select(`*, categorias(nombre), departamentos(nombre)`)
-          .order("nombre");
-        if (soloActivos) q = q.eq("estado", "activo");
-        const { data, error } = await q;
-        if (error) throw error;
-
-        tableHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Clave</th><th>Nombre</th><th>Categoría</th>
-                <th>Stock Total</th><th>Disponible</th><th>Mínimo</th>
-                <th>Ubicación</th><th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(data ?? []).map((i) => `
-                <tr>
-                  <td>${i.clave}</td>
-                  <td>${i.nombre}</td>
-                  <td>${(i.categorias as any)?.nombre ?? ""}</td>
-                  <td class="num">${i.stock_total}</td>
-                  <td class="num ${i.stock_disponible <= i.stock_minimo ? "alerta" : ""}">${i.stock_disponible}</td>
-                  <td class="num">${i.stock_minimo}</td>
-                  <td>${i.ubicacion ?? ""}</td>
-                  <td><span class="badge">${i.estado}</span></td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        `;
-      } else if (tipoReporte === "movimientos") {
-        titulo = "Reporte de Movimientos";
-        let q = supabase
-          .from("historial_inventario")
-          .select(`*, inventario(nombre, clave), usuarios(nombre_completo)`)
-          .order("fecha", { ascending: false });
-        if (fechaDesde) q = q.gte("fecha", new Date(fechaDesde).toISOString());
-        if (fechaHasta) {
-          const f = new Date(fechaHasta); f.setHours(23, 59, 59, 999);
-          q = q.lte("fecha", f.toISOString());
+      (movData ?? []).forEach(m => {
+        const key = new Date(m.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+        if (!dias[key]) return;
+        if (["entrada", "devolucion"].includes(m.tipo_movimiento)) {
+          dias[key].entradas += Number(m.cantidad);
+        } else if (["salida", "prestamo", "baja"].includes(m.tipo_movimiento)) {
+          dias[key].salidas += Number(m.cantidad);
         }
-        const { data, error } = await q;
-        if (error) throw error;
+      });
+      setMovimientosMes(Object.entries(dias).map(([name, v]) => ({ name, ...v })));
 
-        tableHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th><th>Tipo</th><th>Artículo</th>
-                <th>Usuario</th><th>Cantidad</th><th>Antes</th><th>Después</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(data ?? []).map((m) => `
-                <tr>
-                  <td>${new Date(m.fecha).toLocaleString("es-MX")}</td>
-                  <td><span class="badge">${m.tipo_movimiento}</span></td>
-                  <td>${(m.inventario as any)?.nombre ?? ""}</td>
-                  <td>${(m.usuarios as any)?.nombre_completo ?? ""}</td>
-                  <td class="num">${m.cantidad}</td>
-                  <td class="num">${m.stock_antes ?? ""}</td>
-                  <td class="num">${m.stock_despues ?? ""}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        `;
-      } else {
-        titulo = "Reporte de Préstamos";
-        let q = supabase
-          .from("prestamos")
-          .select(`*, usuarios!prestamos_usuario_id_fkey(nombre_completo), departamentos(nombre), detalle_prestamo(cantidad, inventario(nombre))`)
-          .order("created_at", { ascending: false });
-        if (fechaDesde) q = q.gte("fecha_salida", new Date(fechaDesde).toISOString());
-        if (fechaHasta) {
-          const f = new Date(fechaHasta); f.setHours(23, 59, 59, 999);
-          q = q.lte("fecha_salida", f.toISOString());
-        }
-        const { data, error } = await q;
-        if (error) throw error;
+      // Top 5 más prestados
+      const { data: detallePrestamo } = await supabase
+        .from("detalle_prestamo")
+        .select("cantidad, inventario(nombre)")
+        .limit(200);
 
-        tableHTML = `
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Usuario</th><th>Dpto.</th>
-                <th>Fecha Salida</th><th>Estado</th><th>Artículos</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(data ?? []).map((p) => `
-                <tr>
-                  <td>${p.id}</td>
-                  <td>${(p.usuarios as any)?.nombre_completo ?? ""}</td>
-                  <td>${(p.departamentos as any)?.nombre ?? ""}</td>
-                  <td>${new Date(p.fecha_salida).toLocaleString("es-MX")}</td>
-                  <td><span class="badge">${p.estado}</span></td>
-                  <td>${p.detalle_prestamo?.map((d: any) => `${d.inventario?.nombre ?? "?"} ×${d.cantidad}`).join(", ") ?? ""}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        `;
-      }
+      const prestadoMap: Record<string, number> = {};
+      (detallePrestamo ?? []).forEach((d: any) => {
+        const n = d.inventario?.nombre ?? "—";
+        prestadoMap[n] = (prestadoMap[n] ?? 0) + Number(d.cantidad);
+      });
+      setTopPrestados(
+        Object.entries(prestadoMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([name, value]) => ({ name, value }))
+      );
 
-      // Construir la página de impresión
-      const fecha = new Date().toLocaleDateString("es-MX", { dateStyle: "full" });
-      const printHTML = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>${titulo}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: Arial, sans-serif; font-size: 11px; color: #111; padding: 20px; }
-    h1 { font-size: 16px; font-weight: bold; margin-bottom: 4px; color: #1e40af; }
-    .meta { font-size: 10px; color: #6b7280; margin-bottom: 14px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th { background: #1e40af; color: white; padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 600; }
-    td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
-    tr:nth-child(even) { background: #f8fafc; }
-    .num { text-align: center; }
-    .alerta { color: #dc2626; font-weight: bold; }
-    .badge { background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 600; }
-    @media print { body { padding: 0; } }
-  </style>
-</head>
-<body>
-  <h1>${titulo}</h1>
-  <p class="meta">Generado el ${fecha} · Sistema de Inventario InvControl</p>
-  ${tableHTML}
-</body>
-</html>`;
+      setLoading(false);
+    };
+    load();
+  }, []);
 
-      const printWindow = window.open("", "_blank");
-      if (printWindow) {
-        printWindow.document.write(printHTML);
-        printWindow.document.close();
-        setTimeout(() => printWindow.print(), 800);
-      }
+  const StatCard = ({ title, value, sub, color, Icon }: any) => (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
+          <p className={`text-3xl font-black mt-2 ${color}`}>{loading ? "—" : value}</p>
+          {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+        </div>
+        <div className={`p-3 rounded-2xl bg-slate-50`}>
+          <Icon size={20} className={color} />
+        </div>
+      </div>
+    </div>
+  );
 
-      setMensaje({ tipo: "ok", texto: "Ventana de impresión abierta. Elige 'Guardar como PDF' para descargar." });
-    } catch (err: any) {
-      setMensaje({ tipo: "err", texto: err.message ?? "Error al generar el reporte." });
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      {/* Contenido Principal con margen responsive */}
-      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
+      <main className="flex-1 lg:ml-64 w-full">
         <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
 
-      {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Genera y descarga reportes del inventario y movimientos
-        </p>
-      </div>
-
-      {/* Tarjeta principal */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-6">
-        {/* Selección de tipo de reporte */}
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Tipo de reporte</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {(["inventario", "movimientos", "prestamos"] as TipoReporte[]).map((tipo) => {
-              const info = {
-                inventario:  { label: "Inventario", desc: "Estado actual de todos los artículos", icon: "📦" },
-                movimientos: { label: "Movimientos", desc: "Historial de entradas, salidas y ajustes", icon: "📊" },
-                prestamos:   { label: "Préstamos",   desc: "Control de material prestado", icon: "🔄" },
-              }[tipo];
-
-              return (
-                <button
-                  key={tipo}
-                  onClick={() => setTipoReporte(tipo)}
-                  className={`
-                    text-left p-4 rounded-xl border-2 transition-all
-                    ${tipoReporte === tipo
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-blue-200 hover:bg-gray-50"
-                    }
-                  `}
-                >
-                  <div className="text-xl mb-1">{info.icon}</div>
-                  <p className={`text-sm font-semibold ${tipoReporte === tipo ? "text-blue-700" : "text-gray-900"}`}>
-                    {info.label}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-0.5">{info.desc}</p>
-                </button>
-              );
-            })}
+          {/* Header */}
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Reportes</h1>
+              <p className="text-slate-500 font-medium mt-1">Estadísticas y análisis del inventario</p>
+            </div>
           </div>
-        </div>
 
-        {/* Opciones según tipo de reporte */}
-        <div className="space-y-4 border-t border-gray-100 pt-5">
-          {/* Filtro solo activos (inventario) */}
-          {tipoReporte === "inventario" && (
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="soloActivos"
-                checked={soloActivos}
-                onChange={(e) => setSoloActivos(e.target.checked)}
-                className="w-4 h-4 accent-blue-600 cursor-pointer"
-              />
-              <label htmlFor="soloActivos" className="text-sm text-gray-700 cursor-pointer">
-                Solo artículos con estado "activo"
-              </label>
+          {/* Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            <StatCard title="Total artículos" value={stats.totalArticulos} color="text-slate-800" Icon={Package} />
+            <StatCard title="Unidades en stock" value={stats.valorTotalUnidades} color="text-blue-600" Icon={BarChart2} />
+            <StatCard title="Stock bajo" value={stats.stockBajo} sub="Requieren atención" color="text-amber-600" Icon={AlertTriangle} />
+            <StatCard title="Préstamos activos" value={stats.prestamosActivos} color="text-emerald-600" Icon={RefreshCw} />
+            <StatCard title="Dados de baja" value={stats.dadosBaja} color="text-red-500" Icon={TrendingUp} />
+          </div>
+
+          {/* Gráficas Row 1 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+            {/* Movimientos últimos 7 días */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Movimientos — Últimos 7 días</h2>
+              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={movimientosMes} barSize={14}>
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
+                      cursor={{ fill: "#f1f5f9" }}
+                    />
+                    <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="salidas" name="Salidas" fill="#f97316" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Por estado */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Artículos por Estado</h2>
+              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie data={porEstado} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                      dataKey="value" nameKey="name" paddingAngle={3}>
+                      {porEstado.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
+                    <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+
+          {/* Gráficas Row 2 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+            {/* Por categoría */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Artículos por Categoría</h2>
+              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={porCategoria} layout="vertical" barSize={14}>
+                    <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={90} />
+                    <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} cursor={{ fill: "#f1f5f9" }} />
+                    <Bar dataKey="value" name="Artículos" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Top más prestados */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Top 5 Más Prestados</h2>
+              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> :
+                topPrestados.length === 0 ? (
+                  <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Sin datos de préstamos</div>
+                ) : (
+                  <div className="space-y-3">
+                    {topPrestados.map((item, i) => (
+                      <div key={i} className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[11px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-800 truncate">{item.name}</p>
+                          <div className="mt-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: `${(item.value / topPrestados[0].value) * 100}%` }} />
+                          </div>
+                        </div>
+                        <span className="text-sm font-black text-slate-700 flex-shrink-0">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+            </div>
+          </div>
+
+          {/* Stock bajo */}
+          {stockBajoItems.length > 0 && (
+            <div className="bg-white rounded-3xl border border-amber-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-amber-50/50 border-b border-amber-100 flex items-center gap-2">
+                <AlertTriangle size={16} className="text-amber-500" />
+                <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Artículos con Stock Bajo</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-50">
+                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Artículo</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Disponible</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Mínimo</th>
+                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Nivel</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {stockBajoItems.map((item: any) => {
+                      const pct = item.stock_minimo > 0 ? Math.min(100, (item.stock_disponible / item.stock_minimo) * 100) : 0;
+                      return (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="px-6 py-3 text-sm font-bold text-slate-800">{item.nombre}</td>
+                          <td className="px-6 py-3 text-center">
+                            <span className="text-sm font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">{item.stock_disponible}</span>
+                          </td>
+                          <td className="px-6 py-3 text-center text-sm font-bold text-slate-400">{item.stock_minimo}</td>
+                          <td className="px-6 py-3 w-40">
+                            <div className="h-2 bg-red-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* Filtro de fechas (movimientos y préstamos) */}
-          {(tipoReporte === "movimientos" || tipoReporte === "prestamos") && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Fecha desde</label>
-                <input
-                  type="date"
-                  value={fechaDesde}
-                  onChange={(e) => setFechaDesde(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Fecha hasta</label>
-                <input
-                  type="date"
-                  value={fechaHasta}
-                  onChange={(e) => setFechaHasta(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Mensaje de estado */}
-        {mensaje && (
-          <div className={`rounded-lg px-4 py-3 text-sm ${
-            mensaje.tipo === "ok"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-              : "bg-red-50 border border-red-200 text-red-700"
-          }`}>
-            {mensaje.texto}
-          </div>
-        )}
-
-        {/* Botones de exportación */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
-          {/* Excel / CSV */}
-          <button
-            onClick={handleExportExcel}
-            disabled={isGenerating}
-            className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-3 rounded-lg transition-colors disabled:opacity-60"
-          >
-            {isGenerating ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )}
-            Descargar Excel (.csv)
-          </button>
-
-          {/* PDF / Imprimir */}
-          <button
-            onClick={handleExportPDF}
-            disabled={isGenerating}
-            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-3 rounded-lg transition-colors disabled:opacity-60"
-          >
-            {isGenerating ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-            )}
-            Imprimir / PDF
-          </button>
-        </div>
-      </div>
-       </div>
       </main>
     </div>
   );

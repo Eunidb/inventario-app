@@ -7,7 +7,6 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/client";
-import Sidebar from "@/components/sidebar"; // Importante importar el Sidebar
 import StatsCard from "@/components/StatsCard";
 import Link from "next/link";
 import type { InventarioItem, HistorialMovimiento } from "@/lib/supabase";
@@ -121,8 +120,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar Lateral */}
-      <Sidebar />
 
       {/* Contenido Principal con margen responsive */}
       <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">

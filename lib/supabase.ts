@@ -14,7 +14,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    "Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL y/o NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    "Faltan variables de entorno: NEXT_PUBLIC_SUPABASE_URL y/o NEXT_PUBLIC_SUPABASE_ANON_KEY",
   );
 }
 
@@ -39,7 +39,11 @@ export type EstadoInventarioEnum =
   | "mantenimiento";
 
 /** Estados posibles de un préstamo */
-export type EstadoPrestamoEnum = "activo" | "devuelto" | "atrasado" | "cancelado";
+export type EstadoPrestamoEnum =
+  | "activo"
+  | "devuelto"
+  | "atrasado"
+  | "cancelado";
 
 /** Estados posibles del detalle de un préstamo */
 export type EstadoDetallePrestamoEnum =
@@ -114,7 +118,8 @@ export interface Prestamo {
   id: number;
   usuario_id: string;
   departamento_id?: number;
-  created_by: string;
+  autorizado_por?: string;
+  registrado_por?: string;
   fecha_salida: string;
   fecha_devolucion?: string;
   estado: EstadoPrestamoEnum;

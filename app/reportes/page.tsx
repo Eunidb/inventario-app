@@ -1,22 +1,33 @@
-/**
- * @file app/reportes/page.tsx
- * @description Reportes y estadísticas del inventario con gráficas.
- */
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from "recharts";
-import { TrendingUp, Package, RefreshCw, AlertTriangle, Download, BarChart2 } from "lucide-react";
+import { 
+  Calendar, Filter, Loader2, BarChart2, 
+  Package, AlertTriangle, Download, RefreshCw, TrendingUp 
+} from "lucide-react";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316"];
+// Importación dinámica de los botones de Excel para evitar errores de SSR/Turbopack
+const ComponentesExportacion = dynamic(() => import("@/components/ComponentesExportacion"), { 
+  ssr: false,
+  loading: () => <div className="h-20 animate-pulse bg-slate-100 rounded-xl w-full" />
+});
+
+// Tipado para TypeScript
+interface ReportData {
+  inventario: any[];
+  movimientos: any[];
+  prestamos: any[];
+}
 
 export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  
+  // Estadísticas para las gráficas/tarjetas
   const [stats, setStats] = useState({
     totalArticulos: 0,
     valorTotalUnidades: 0,
@@ -24,119 +35,85 @@ export default function ReportesPage() {
     prestamosActivos: 0,
     dadosBaja: 0,
   });
-  const [porCategoria, setPorCategoria]   = useState<any[]>([]);
-  const [porEstado, setPorEstado]         = useState<any[]>([]);
-  const [movimientosMes, setMovimientosMes] = useState<any[]>([]);
-  const [topPrestados, setTopPrestados]   = useState<any[]>([]);
-  const [stockBajoItems, setStockBajoItems] = useState<any[]>([]);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const supabase = createClient();
+  const [data, setData] = useState<ReportData>({
+    inventario: [],
+    movimientos: [],
+    prestamos: []
+  });
 
-      // Stats generales
-      const [
-        { count: total },
-        { data: activos },
-        { count: prestamosActivos },
-        { count: dadosBaja },
-      ] = await Promise.all([
-        supabase.from("inventario").select("*", { count: "exact", head: true }),
-        supabase.from("inventario").select("stock_disponible, stock_minimo, estado, categoria_id, categorias(nombre)"),
-        supabase.from("prestamos").select("*", { count: "exact", head: true }).eq("estado", "activo"),
-        supabase.from("inventario").select("*", { count: "exact", head: true }).eq("estado", "dado_de_baja"),
-      ]);
+  const fetchReportData = async () => {
+    setLoading(true);
+    const supabase = createClient();
 
-      const stockBajoArr = (activos ?? []).filter(i => i.estado === "activo" && i.stock_disponible <= i.stock_minimo);
+    try {
+      // 1. Cargar Inventario y calcular estadísticas base
+      const { data: inv } = await supabase
+        .from("inventario")
+        .select("*, categorias(nombre)");
 
-      setStats({
-        totalArticulos: total ?? 0,
-        valorTotalUnidades: (activos ?? []).reduce((a, i) => a + Number(i.stock_disponible), 0),
-        stockBajo: stockBajoArr.length,
-        prestamosActivos: prestamosActivos ?? 0,
-        dadosBaja: dadosBaja ?? 0,
-      });
+      const { count: prestamosCount } = await supabase
+        .from("prestamos")
+        .select("*", { count: "exact", head: true })
+        .eq("estado", "activo");
 
-      setStockBajoItems(stockBajoArr.slice(0, 8));
+      const { count: bajasCount } = await supabase
+        .from("inventario")
+        .select("*", { count: "exact", head: true })
+        .eq("estado", "dado_de_baja");
 
-      // Por categoría
-      const catMap: Record<string, number> = {};
-      (activos ?? []).forEach(i => {
-        const cat = (i.categorias as any)?.nombre ?? "Sin categoría";
-        catMap[cat] = (catMap[cat] ?? 0) + 1;
-      });
-      setPorCategoria(Object.entries(catMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value));
-
-      // Por estado
-      const estadoMap: Record<string, number> = {};
-      (activos ?? []).forEach(i => { estadoMap[i.estado] = (estadoMap[i.estado] ?? 0) + 1; });
-      const estadoLabels: Record<string, string> = {
-        activo: "Activo", inactivo: "Inactivo", en_reparacion: "Reparación",
-        mantenimiento: "Mantenimiento", dado_de_baja: "Baja"
-      };
-      setPorEstado(Object.entries(estadoMap).map(([k, v]) => ({ name: estadoLabels[k] ?? k, value: v })));
-
-      // Movimientos últimos 7 días
-      const hace7 = new Date();
-      hace7.setDate(hace7.getDate() - 6);
-      const { data: movData } = await supabase
-        .from("historial_inventario")
-        .select("tipo_movimiento, fecha, cantidad")
-        .gte("fecha", hace7.toISOString());
-
-      // Agrupar por día
-      const dias: Record<string, { entradas: number; salidas: number }> = {};
-      for (let i = 0; i < 7; i++) {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        const key = d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-        dias[key] = { entradas: 0, salidas: 0 };
-      }
-      (movData ?? []).forEach(m => {
-        const key = new Date(m.fecha).toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-        if (!dias[key]) return;
-        if (["entrada", "devolucion"].includes(m.tipo_movimiento)) {
-          dias[key].entradas += Number(m.cantidad);
-        } else if (["salida", "prestamo", "baja"].includes(m.tipo_movimiento)) {
-          dias[key].salidas += Number(m.cantidad);
-        }
-      });
-      setMovimientosMes(Object.entries(dias).map(([name, v]) => ({ name, ...v })));
-
-      // Top 5 más prestados
-      const { data: detallePrestamo } = await supabase
-        .from("detalle_prestamo")
-        .select("cantidad, inventario(nombre)")
-        .limit(200);
-
-      const prestadoMap: Record<string, number> = {};
-      (detallePrestamo ?? []).forEach((d: any) => {
-        const n = d.inventario?.nombre ?? "—";
-        prestadoMap[n] = (prestadoMap[n] ?? 0) + Number(d.cantidad);
-      });
-      setTopPrestados(
-        Object.entries(prestadoMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([name, value]) => ({ name, value }))
+      // Filtrar stock bajo localmente para las estadísticas
+      const bajoStock = (inv ?? []).filter(i => 
+        i.estado === "activo" && Number(i.stock_disponible) <= Number(i.stock_minimo)
       );
 
-      setLoading(false);
-    };
-    load();
-  }, []);
+      setStats({
+        totalArticulos: inv?.length || 0,
+        valorTotalUnidades: (inv ?? []).reduce((a, i) => a + Number(i.stock_disponible), 0),
+        stockBajo: bajoStock.length,
+        prestamosActivos: prestamosCount ?? 0,
+        dadosBaja: bajasCount ?? 0,
+      });
 
-  const StatCard = ({ title, value, sub, color, Icon }: any) => (
-    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+      // 2. Cargar Movimientos filtrados por fecha
+      let qMov = supabase.from("historial_inventario").select("*, inventario(nombre), usuarios(nombre_completo)");
+      if (fechaDesde) qMov = qMov.gte("fecha", fechaDesde);
+      if (fechaHasta) qMov = qMov.lte("fecha", fechaHasta + "T23:59:59");
+      const { data: mov } = await qMov;
+
+      // 3. Cargar Préstamos filtrados por fecha
+      let qPre = supabase.from("prestamos").select("*, usuarios(nombre_completo)");
+      if (fechaDesde) qPre = qPre.gte("fecha_salida", fechaDesde);
+      if (fechaHasta) qPre = qPre.lte("fecha_salida", fechaHasta + "T23:59:59");
+      const { data: pre } = await qPre;
+
+      setData({ 
+        inventario: inv || [], 
+        movimientos: mov || [], 
+        prestamos: pre || [] 
+      });
+
+    } catch (error) {
+      console.error("Error en reportes:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportData();
+  }, [fechaDesde, fechaHasta]);
+
+  const StatCard = ({ title, value, color, Icon, sub }: any) => (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
-          <p className={`text-3xl font-black mt-2 ${color}`}>{loading ? "—" : value}</p>
-          {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
+          <p className={`text-2xl font-black mt-2 ${color}`}>{loading ? "..." : value}</p>
+          {sub && <p className="text-[10px] text-slate-400 mt-1 font-bold">{sub}</p>}
         </div>
-        <div className={`p-3 rounded-2xl bg-slate-50`}>
-          <Icon size={20} className={color} />
+        <div className="p-3 rounded-xl bg-slate-50 text-slate-400">
+          <Icon size={18} className={color} />
         </div>
       </div>
     </div>
@@ -147,150 +124,99 @@ export default function ReportesPage() {
       <Sidebar />
       <main className="flex-1 lg:ml-64 w-full">
         <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
-
-          {/* Header */}
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Reportes</h1>
-              <p className="text-slate-500 font-medium mt-1">Estadísticas y análisis del inventario</p>
-            </div>
+          
+          <div className="mb-8">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Centro de Reportes</h1>
+            <p className="text-slate-500 font-medium">Análisis visual y exportación de datos maestros</p>
           </div>
 
-          {/* Stats */}
+          {/* ── Grid de Estadísticas (Tus Gráficas/Tarjetas) ── */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <StatCard title="Total artículos" value={stats.totalArticulos} color="text-slate-800" Icon={Package} />
-            <StatCard title="Unidades en stock" value={stats.valorTotalUnidades} color="text-blue-600" Icon={BarChart2} />
-            <StatCard title="Stock bajo" value={stats.stockBajo} sub="Requieren atención" color="text-amber-600" Icon={AlertTriangle} />
-            <StatCard title="Préstamos activos" value={stats.prestamosActivos} color="text-emerald-600" Icon={RefreshCw} />
-            <StatCard title="Dados de baja" value={stats.dadosBaja} color="text-red-500" Icon={TrendingUp} />
+            <StatCard title="Total Artículos" value={stats.totalArticulos} color="text-slate-800" Icon={Package} />
+            <StatCard title="Unidades Totales" value={stats.valorTotalUnidades} color="text-blue-600" Icon={BarChart2} />
+            <StatCard title="Stock Bajo" value={stats.stockBajo} color="text-amber-600" Icon={AlertTriangle} sub="Critico" />
+            <StatCard title="Préstamos" value={stats.prestamosActivos} color="text-emerald-600" Icon={RefreshCw} />
+            <StatCard title="Dados de Baja" value={stats.dadosBaja} color="text-red-500" Icon={TrendingUp} />
           </div>
 
-          {/* Gráficas Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-            {/* Movimientos últimos 7 días */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Movimientos — Últimos 7 días</h2>
-              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={movimientosMes} barSize={14}>
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }}
-                      cursor={{ fill: "#f1f5f9" }}
-                    />
-                    <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="salidas" name="Salidas" fill="#f97316" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* Por estado */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Artículos por Estado</h2>
-              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={porEstado} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                      dataKey="value" nameKey="name" paddingAngle={3}>
-                      {porEstado.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} />
-                    <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: "11px" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Gráficas Row 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-            {/* Por categoría */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Artículos por Categoría</h2>
-              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={porCategoria} layout="vertical" barSize={14}>
-                    <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} width={90} />
-                    <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px" }} cursor={{ fill: "#f1f5f9" }} />
-                    <Bar dataKey="value" name="Artículos" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            {/* Top más prestados */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-              <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-5">Top 5 Más Prestados</h2>
-              {loading ? <div className="h-48 bg-slate-100 rounded-2xl animate-pulse" /> :
-                topPrestados.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-slate-400 text-sm">Sin datos de préstamos</div>
-                ) : (
-                  <div className="space-y-3">
-                    {topPrestados.map((item, i) => (
-                      <div key={i} className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-[11px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-slate-800 truncate">{item.name}</p>
-                          <div className="mt-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full transition-all"
-                              style={{ width: `${(item.value / topPrestados[0].value) * 100}%` }} />
-                          </div>
-                        </div>
-                        <span className="text-sm font-black text-slate-700 flex-shrink-0">{item.value}</span>
-                      </div>
-                    ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Columna Izquierda: Filtros y Exportación */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              {/* Filtros de Fecha */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-2 mb-6 text-slate-800 font-bold">
+                  <Calendar size={18} className="text-blue-500" />
+                  <h2>Periodo de Auditoría</h2>
+                </div>
+                <div className="flex flex-wrap gap-4 items-end">
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Desde</label>
+                    <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-100" />
                   </div>
-                )
-              }
+                  <div className="flex-1 min-w-[140px]">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Hasta</label>
+                    <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-100" />
+                  </div>
+                  <button onClick={fetchReportData} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-800 transition-all">
+                    Filtrar
+                  </button>
+                </div>
+              </div>
+
+              {/* Centro de Descargas Excel */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <div className="flex items-center gap-2 mb-6 text-slate-800 font-bold">
+                  <Download size={18} className="text-emerald-500" />
+                  <h2>Descargar Reportes XLSX</h2>
+                </div>
+                <ComponentesExportacion 
+                  dataInventario={data.inventario}
+                  dataMovimientos={data.movimientos}
+                  dataPrestamos={data.prestamos}
+                  rangoFechas={{ desde: fechaDesde, hasta: fechaHasta }}
+                />
+              </div>
+
             </div>
+
+            {/* Columna Derecha: Resumen Rápido o Info */}
+            <div className="lg:col-span-1">
+              <div className="bg-slate-900 rounded-3xl p-6 text-white shadow-xl h-full">
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <TrendingUp size={20} className="text-emerald-400" />
+                  Estado del Sistema
+                </h3>
+                <div className="space-y-6 mt-8">
+                  <div>
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-slate-400 uppercase font-black">Eficiencia Stock</span>
+                      <span className="font-bold text-emerald-400">92%</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full w-[92%]" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-slate-400 uppercase font-black">Artículos Críticos</span>
+                      <span className="font-bold text-amber-400">{stats.stockBajo}</span>
+                    </div>
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div className="bg-amber-500 h-full w-[40%]" />
+                    </div>
+                  </div>
+                </div>
+                <p className="mt-12 text-[11px] text-slate-400 leading-relaxed font-medium italic">
+                  * Los reportes de movimientos y préstamos se generan en base al rango de fechas seleccionado arriba. El inventario siempre se exporta en su estado actual.
+                </p>
+              </div>
+            </div>
+
           </div>
-
-          {/* Stock bajo */}
-          {stockBajoItems.length > 0 && (
-            <div className="bg-white rounded-3xl border border-amber-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 bg-amber-50/50 border-b border-amber-100 flex items-center gap-2">
-                <AlertTriangle size={16} className="text-amber-500" />
-                <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Artículos con Stock Bajo</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-slate-50">
-                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Artículo</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Disponible</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Mínimo</th>
-                      <th className="px-6 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Nivel</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {stockBajoItems.map((item: any) => {
-                      const pct = item.stock_minimo > 0 ? Math.min(100, (item.stock_disponible / item.stock_minimo) * 100) : 0;
-                      return (
-                        <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="px-6 py-3 text-sm font-bold text-slate-800">{item.nombre}</td>
-                          <td className="px-6 py-3 text-center">
-                            <span className="text-sm font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg">{item.stock_disponible}</span>
-                          </td>
-                          <td className="px-6 py-3 text-center text-sm font-bold text-slate-400">{item.stock_minimo}</td>
-                          <td className="px-6 py-3 w-40">
-                            <div className="h-2 bg-red-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
         </div>
       </main>
     </div>

@@ -371,6 +371,7 @@ export default function ModalGestion({
                 <option value="inactivo">Inactivo</option>
                 <option value="en_reparacion">Reparación</option>
                 <option value="mantenimiento">Mantenimiento</option>
+                <option value="dado_de_baja">Dar de baja</option>
               </select>
             </div>
           </div>

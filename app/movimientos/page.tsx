@@ -1,6 +1,7 @@
 /**
  * @file app/movimientos/page.tsx
- * @description Registro de movimientos manuales: entradas, salidas y ajustes de stock.
+ * @description Registro de movimientos manuales: entradas, salidas, traslados y ajustes.
+ * Se excluyen los registros vinculados a préstamos para mantener un historial operativo limpio.
  */
 "use client";
 
@@ -8,15 +9,14 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
 import ModalMovimiento from "@/components/ModalMovimiento";
-import { Plus, Search, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal, Filter } from "lucide-react";
+import { Plus, Search, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal, RefreshCw } from "lucide-react";
 
 const TIPO_CONFIG: Record<string, { label: string; cls: string; Icon: any }> = {
-  entrada:   { label: "Entrada",   cls: "bg-emerald-50 text-emerald-700 border-emerald-100", Icon: ArrowDownCircle },
-  salida:    { label: "Salida",    cls: "bg-orange-50 text-orange-700 border-orange-100",   Icon: ArrowUpCircle },
-  ajuste:    { label: "Ajuste",    cls: "bg-purple-50 text-purple-700 border-purple-100",   Icon: SlidersHorizontal },
-  prestamo:  { label: "Préstamo",  cls: "bg-blue-50 text-blue-700 border-blue-100",         Icon: ArrowUpCircle },
-  devolucion:{ label: "Devolución",cls: "bg-teal-50 text-teal-700 border-teal-100",         Icon: ArrowDownCircle },
-  baja:      { label: "Baja",      cls: "bg-red-50 text-red-700 border-red-100",            Icon: ArrowUpCircle },
+  entrada:  { label: "Entrada",   cls: "bg-emerald-50 text-emerald-700 border-emerald-100", Icon: ArrowDownCircle },
+  salida:   { label: "Salida",    cls: "bg-orange-50 text-orange-700 border-orange-100",   Icon: ArrowUpCircle },
+  ajuste:   { label: "Ajuste",    cls: "bg-purple-50 text-purple-700 border-purple-100",   Icon: SlidersHorizontal },
+  traslado: { label: "Traslado",  cls: "bg-blue-50 text-blue-700 border-blue-100",        Icon: RefreshCw },
+  baja:     { label: "Baja",      cls: "bg-red-50 text-red-700 border-red-100",           Icon: ArrowUpCircle },
 };
 
 export default function MovimientosPage() {
@@ -37,8 +37,10 @@ export default function MovimientosPage() {
         .select(`
           *,
           inventario(nombre, clave),
-          usuarios(nombre_completo)
+          usuarios(nombre_completo),
+          destino:departamento_destino(nombre)
         `)
+        .is("prestamo_id", null) // Filtro para ocultar movimientos de préstamos
         .order("fecha", { ascending: false })
         .range((page - 1) * PER_PAGE, page * PER_PAGE - 1);
 
@@ -67,11 +69,11 @@ export default function MovimientosPage() {
   const formatFecha = (f: string) =>
     new Date(f).toLocaleString("es-MX", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
-  // Resumen del día
+  // Resumen del día (Solo movimientos manuales)
   const hoy = new Date().toDateString();
   const hoyMov = movimientos.filter(m => new Date(m.fecha).toDateString() === hoy);
   const entradas = hoyMov.filter(m => m.tipo_movimiento === "entrada").reduce((a, m) => a + Number(m.cantidad), 0);
-  const salidas  = hoyMov.filter(m => ["salida", "prestamo"].includes(m.tipo_movimiento)).reduce((a, m) => a + Number(m.cantidad), 0);
+  const salidas  = hoyMov.filter(m => ["salida", "baja", "traslado"].includes(m.tipo_movimiento)).reduce((a, m) => a + Number(m.cantidad), 0);
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -83,7 +85,7 @@ export default function MovimientosPage() {
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
             <div>
               <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Movimientos</h1>
-              <p className="text-slate-500 font-medium mt-1">Entradas, salidas y ajustes de inventario</p>
+              <p className="text-slate-500 font-medium mt-1">Traslados, entradas, salidas y ajustes técnicos</p>
             </div>
             <button
               onClick={() => setModalOpen(true)}
@@ -96,9 +98,9 @@ export default function MovimientosPage() {
           {/* Resumen hoy */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             {[
-              { label: "Movimientos hoy",  val: hoyMov.length, cls: "text-slate-700",   bg: "bg-white" },
-              { label: "Entradas hoy",     val: entradas,       cls: "text-emerald-600", bg: "bg-emerald-50" },
-              { label: "Salidas hoy",      val: salidas,        cls: "text-orange-600",  bg: "bg-orange-50" },
+              { label: "Operaciones hoy",  val: hoyMov.length, cls: "text-slate-700",   bg: "bg-white" },
+              { label: "Entradas hoy",     val: entradas,      cls: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Salidas/Traslados",val: salidas,       cls: "text-orange-600",  bg: "bg-orange-50" },
               { label: "Total registros",  val: movimientos.length, cls: "text-blue-600", bg: "bg-blue-50" },
             ].map(s => (
               <div key={s.label} className={`${s.bg} rounded-2xl border border-slate-100 shadow-sm p-4`}>
@@ -134,6 +136,7 @@ export default function MovimientosPage() {
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Artículo</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Tipo</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Cantidad</th>
+                    <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Destino</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden md:table-cell">Stock</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">Usuario</th>
                     <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Fecha</th>
@@ -142,13 +145,13 @@ export default function MovimientosPage() {
                 <tbody className="divide-y divide-slate-50">
                   {isLoading ? (
                     [...Array(6)].map((_, i) => (
-                      <tr key={i}><td colSpan={6} className="px-6 py-5">
+                      <tr key={i}><td colSpan={7} className="px-6 py-5">
                         <div className="h-5 bg-slate-100 rounded-lg animate-pulse w-full" />
                       </td></tr>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={6} className="py-16 text-center text-slate-400 text-sm font-medium">
-                      No hay movimientos registrados
+                    <tr><td colSpan={7} className="py-16 text-center text-slate-400 text-sm font-medium">
+                      No hay movimientos operativos registrados
                     </td></tr>
                   ) : filtered.map((m) => {
                     const cfg = TIPO_CONFIG[m.tipo_movimiento] ?? TIPO_CONFIG.ajuste;
@@ -167,7 +170,12 @@ export default function MovimientosPage() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <span className="text-sm font-black text-slate-800">
-                            {["salida","prestamo","baja"].includes(m.tipo_movimiento) ? "−" : "+"}{m.cantidad}
+                            {["salida","baja"].includes(m.tipo_movimiento) ? "−" : m.tipo_movimiento === 'entrada' ? "+" : ""}{m.cantidad}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-semibold text-slate-600">
+                            {m.destino?.nombre ?? <span className="text-slate-300">—</span>}
                           </span>
                         </td>
                         <td className="px-6 py-4 hidden md:table-cell">
@@ -194,7 +202,7 @@ export default function MovimientosPage() {
             {/* Paginación */}
             <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
               <p className="text-sm font-medium text-slate-500">
-                Mostrando <span className="text-slate-900 font-bold">{filtered.length}</span> movimientos
+                Mostrando <span className="text-slate-900 font-bold">{filtered.length}</span> registros operativos
               </p>
               <div className="flex gap-2">
                 <button disabled={page === 1} onClick={() => setPage(p => p - 1)}

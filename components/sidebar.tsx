@@ -12,13 +12,15 @@ import { createClient } from '@/lib/client';
 import { 
   Menu, X, LayoutDashboard, Box, 
   ArrowLeftRight, History, BarChart3, 
-  Settings, LogOut 
+  Settings, LogOut, 
+  ArrowBigUp
 } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", label: "Inicio", icon: <LayoutDashboard size={20} /> },
   { href: "/inventario", label: "Inventario", icon: <Box size={20} /> },
   { href: "/prestamos", label: "Préstamos", icon: <ArrowLeftRight size={20} /> },
+  { href: "/movimientos", label: "Movimientos", icon: <ArrowBigUp size={20} /> },
   { href: "/historial", label: "Historial", icon: <History size={20} /> },
   { href: "/reportes", label: "Reportes", icon: <BarChart3 size={20} /> },
   { href: "/configuracion", label: "Configuración", icon: <Settings size={20} /> },

@@ -33,6 +33,19 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+
+  const handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error("Error cerrando sesión:", error.message);
+    return;
+  }
+
+  router.push("/");
+  router.refresh(); // importante en Next 13+
+};
+
   return (
     <>
       {/* BOTÓN MÓVIL */}
@@ -100,7 +113,9 @@ export default function Sidebar() {
             {isCollapsed ? <ArrowLeftRight size={16} /> : <span className="text-xs font-bold uppercase tracking-widest">Reducir</span>}
           </button>
           
-          <button className={`flex items-center gap-3 w-full h-12 rounded-xl text-red-400 hover:bg-red-500/10 transition-all ${isCollapsed ? "justify-center" : "px-3"}`}>
+          <button 
+           onClick={handleLogout}
+          className={`flex items-center gap-3 w-full h-12 rounded-xl text-red-400 hover:bg-red-500/10 transition-all ${isCollapsed ? "justify-center" : "px-3"}`}>
             <LogOut size={20} className="flex-shrink-0" />
             <span className={`text-sm font-bold min-w-max ${isCollapsed ? "lg:hidden" : "block"}`}>
               Cerrar Sesión

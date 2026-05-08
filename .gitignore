@@ -29,6 +29,7 @@
 .env
 .env.local
 .env.*.local
+priv.txt
 
 # ⚠️ opcional (si usas Supabase CLI)
 .supabase/

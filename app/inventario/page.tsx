@@ -11,16 +11,16 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback} from "react";
 import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
 import ModalGestion from "@/components/ModalGestion";
+import ModalFichaTecnica from "@/components/ModalFichaTecnica";
 import type { InventarioItem, Categoria, EstadoInventarioEnum } from "@/lib/supabase";
 import {
   Plus, Search, Package, Pencil, Trash2,
   ChevronDown, ChevronLeft, ChevronRight,
-  Eye, MapPin, X, Hash, Tag, Layers,
-  Info, BarChart3, Calendar,
+  Eye, MapPin, Tag,
 } from "lucide-react";
 
 // ─── Estilos por estado ──────────────────────────────────────────────────────
@@ -276,7 +276,7 @@ export default function InventarioPage() {
                         {/* ── Artículo: imagen grande + nombre + clave ── */}
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
-                            {/* Imagen — w-16 h-16 (64px × 64px) */}
+                            {/* Imagen  */}
                             <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
                               {item.imagen_url
                                 ? <img src={item.imagen_url} alt={item.nombre} className="w-full h-full object-cover" />
@@ -439,179 +439,3 @@ export default function InventarioPage() {
   );
 }
 
-// ============================================================================
-// MODAL: FICHA TÉCNICA COMPLETA
-// Muestra todos los campos del artículo en un panel de lado derecho
-// ============================================================================
-function ModalFichaTecnica({
-  item, onClose, onEditar,
-}: {
-  item: InventarioItem;
-  onClose: () => void;
-  onEditar: () => void;
-}) {
-  const est = ESTADO_LABELS[item.estado];
-
-  // Formatea una fecha ISO a español
-  const fmtFecha = (f?: string) =>
-    f ? new Date(f).toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" }) : "—";
-
-  return (
-    <div className="fixed inset-0 z-50 flex">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Panel deslizable desde la derecha */}
-      <div className="ml-auto relative bg-white w-full max-w-lg h-full flex flex-col shadow-2xl">
-
-        {/* ── Cabecera con imagen y datos principales ── */}
-        <div className="flex-shrink-0 bg-gradient-to-br from-slate-800 to-slate-900 p-6 text-white">
-          <div className="flex items-start justify-between mb-5">
-            <span className="font-mono text-xs font-black text-slate-400 bg-slate-700/60 px-2.5 py-1 rounded-lg">
-              {item.clave}
-            </span>
-            <div className="flex items-center gap-2">
-              {/* Botón editar desde la ficha */}
-              <button
-                onClick={onEditar}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition-colors"
-              >
-                Editar
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400 transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-5">
-            {/* Imagen grande en la ficha: 96×96 px */}
-            <div className="w-24 h-24 rounded-2xl bg-slate-700 border border-slate-600 flex-shrink-0 overflow-hidden flex items-center justify-center shadow-xl">
-              {item.imagen_url
-                ? <img src={item.imagen_url} alt={item.nombre} className="w-full h-full object-cover" />
-                : <Package size={36} className="text-slate-500" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-xl font-black text-white leading-tight">{item.nombre}</h2>
-              {item.marca && (
-                <p className="text-sm text-slate-400 font-medium mt-1">
-                  {item.marca}{item.modelo ? ` · ${item.modelo}` : ""}
-                </p>
-              )}
-              {/* Badge de estado */}
-              <div className="mt-3">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border ${est?.cls}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${est?.dot}`} />
-                  {est?.label}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Cuerpo con todos los campos ── */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-          {/* Sección: Stock */}
-          <Section icon={<BarChart3 size={15} />} titulo="Control de Stock">
-            <div className="grid grid-cols-3 gap-3">
-              <StockCard label="Disponible" value={item.stock_disponible}
-                highlight={item.stock_disponible <= item.stock_minimo} />
-              <StockCard label="Total" value={item.stock_total} />
-              <StockCard label="Mínimo" value={item.stock_minimo} dimmed />
-            </div>
-            {item.unidad_medida && (
-              <Campo label="Unidad de medida" valor={item.unidad_medida} />
-            )}
-          </Section>
-
-          {/* Sección: Identificación técnica */}
-          <Section icon={<Hash size={15} />} titulo="Identificación">
-            <Campo label="Clave" valor={item.clave} mono />
-            {item.marca          && <Campo label="Marca"          valor={item.marca} />}
-            {item.modelo         && <Campo label="Modelo"         valor={item.modelo} />}
-            {item.numero_serie   && <Campo label="Número de serie" valor={item.numero_serie} mono />}
-          </Section>
-
-          {/* Sección: Clasificación */}
-          <Section icon={<Tag size={15} />} titulo="Clasificación">
-            <Campo label="Categoría"    valor={(item.categorias as any)?.nombre ?? "Sin categoría"} />
-            <Campo label="Departamento" valor={(item.departamentos as any)?.nombre ?? "Sin departamento"} />
-            {item.ubicacion && <Campo label="Ubicación" valor={item.ubicacion} icon={<MapPin size={12} />} />}
-          </Section>
-
-          {/* Sección: Descripción */}
-          {item.descripcion && (
-            <Section icon={<Info size={15} />} titulo="Descripción">
-              <p className="text-sm text-slate-600 leading-relaxed">{item.descripcion}</p>
-            </Section>
-          )}
-
-          {/* Sección: Fechas */}
-          <Section icon={<Calendar size={15} />} titulo="Registro">
-            <Campo label="Fecha de alta"       valor={fmtFecha(item.fecha_creacion)} />
-            <Campo label="Última actualización" valor={fmtFecha(item.updated_at)} />
-          </Section>
-
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Componentes auxiliares del modal ────────────────────────────────────────
-
-/** Sección con título e icono que agrupa campos relacionados */
-function Section({ icon, titulo, children }: { icon: React.ReactNode; titulo: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-blue-500">{icon}</span>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{titulo}</p>
-      </div>
-      <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/** Campo individual con etiqueta y valor */
-function Campo({
-  label, valor, mono = false, icon,
-}: {
-  label: string; valor: string | number; mono?: boolean; icon?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex-shrink-0">{label}</p>
-      <p className={`text-sm font-semibold text-slate-700 text-right flex items-center gap-1 ${mono ? "font-mono" : ""}`}>
-        {icon && <span className="text-slate-400">{icon}</span>}
-        {valor}
-      </p>
-    </div>
-  );
-}
-
-/** Tarjeta de stock con valor destacado */
-function StockCard({
-  label, value, highlight = false, dimmed = false,
-}: {
-  label: string; value: number; highlight?: boolean; dimmed?: boolean;
-}) {
-  return (
-    <div className={`rounded-xl p-3 text-center border ${
-      highlight ? "bg-red-50 border-red-100" : "bg-white border-slate-100"
-    }`}>
-      <p className={`text-2xl font-black leading-none ${
-        highlight ? "text-red-600" : dimmed ? "text-slate-400" : "text-slate-800"
-      }`}>
-        {value}
-      </p>
-      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mt-1.5">{label}</p>
-    </div>
-  );
-}

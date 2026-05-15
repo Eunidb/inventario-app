@@ -1,20 +1,6 @@
 /**
  * @file components/formatos/FormularioAcordeon.tsx
- * @description Componente acordeón para un formulario individual dentro de un expediente.
- *
- * Cada instancia de este componente representa un registro_formato de la BD.
- * Al expandirse muestra los campos específicos del tipo de formulario físico,
- * la sección para adjuntar la foto del formato físico firmado, y el botón de guardado.
- *
- * FUNCIONALIDAD:
- *   - Carga los datos_json del formato (campos ya llenados previamente).
- *   - Renderiza campos de tipo: text, textarea, date, select y checkboxes.
- *   - Sube la imagen al bucket "formatos" de Supabase Storage.
- *   - Al guardar marca el formulario como `completado = true` en la BD.
- *
- * RESPONSIVE:
- *   - Los campos se distribuyen en 1 columna en mobile y 2 en sm+.
- *   - Los checkboxes se adaptan en wrap para pantallas pequeñas.
+ * @description Componente acordeón optimizado y 100% responsive para formularios en expedientes.
  */
 
 "use client";
@@ -29,12 +15,11 @@ import {
   Upload,
   Loader2,
   Save,
+  Trash2,
 } from "lucide-react";
 import { FORMATO_CONFIG, CAMPOS_FORMULARIO, type TipoFormato } from "./types";
 
-// ─── Props del componente ────────────────────────────────────────────────────
 interface FormularioAcordeonProps {
-  /** Registro de la tabla registros_formato */
   formato: {
     id: number;
     tipo: TipoFormato;
@@ -43,11 +28,8 @@ interface FormularioAcordeonProps {
     completado: boolean;
     fecha_llenado: string | null;
   };
-  /** Si el acordeón está expandido */
   abierto: boolean;
-  /** Callback para expandir o contraer */
   onToggle: () => void;
-  /** Callback llamado tras guardar exitosamente para recargar la lista */
   onSaved: () => void;
 }
 
@@ -62,10 +44,7 @@ export default function FormularioAcordeon({
   const Icon = cfg?.Icon;
 
   // ── Estado local del formulario ───────────────────────────────────────────
-  // Se inicializa con los datos ya guardados en la BD para permitir edición posterior.
-  const [datos, setDatos] = useState<Record<string, any>>(
-    formato.datos_json ?? {},
-  );
+  const [datos, setDatos] = useState<Record<string, any>>(formato.datos_json ?? {});
   const [imageUrl, setImageUrl] = useState<string>(formato.imagen_url ?? "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,16 +57,14 @@ export default function FormularioAcordeon({
     setUploading(true);
     const supabase = createClient();
     const ext = file.name.split(".").pop();
-    // Nombre único usando tipo + id + timestamp para evitar colisiones en Storage
     const fileName = `${formato.tipo}-${formato.id}-${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from("formatos")
       .upload(fileName, file);
+      
     if (!error) {
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("formatos").getPublicUrl(fileName);
+      const { data: { publicUrl } } = supabase.storage.from("formatos").getPublicUrl(fileName);
       setImageUrl(publicUrl);
     } else {
       alert("Error al subir la imagen: " + error.message);
@@ -97,22 +74,17 @@ export default function FormularioAcordeon({
 
   // ── Guardar el formulario ─────────────────────────────────────────────────
   const handleGuardar = async () => {
-    // Validar solo los campos marcados como requeridos
     const faltantes = campos.filter(
       (c) => c.requerido && !datos[c.key]?.toString().trim(),
     );
     if (faltantes.length > 0) {
-      alert(
-        `Completa los campos requeridos: ${faltantes.map((f) => f.label).join(", ")}`,
-      );
+      alert(`Completa los campos requeridos: ${faltantes.map((f) => f.label).join(", ")}`);
       return;
     }
 
     setSaving(true);
     const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     const { error } = await supabase
       .from("registros_formato")
@@ -133,117 +105,88 @@ export default function FormularioAcordeon({
     setSaving(false);
   };
 
-  // ── Helper: actualizar un campo del objeto datos ──────────────────────────
   const setField = (key: string, value: any) =>
     setDatos((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div>
-      {/* ── Cabecera del acordeón (siempre visible) ── */}
+    <div className="border border-slate-100 rounded-2xl overflow-hidden bg-white shadow-sm transition-all duration-200">
+      
+      {/* ── Cabecera del acordeón ── */}
       <button
         onClick={onToggle}
-        className={`w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 text-left
-                    transition-colors hover:bg-slate-50
-                    ${abierto ? "bg-slate-50" : ""}`}
+        className={`w-full flex items-center gap-3 px-3 sm:px-5 py-3 sm:py-4 text-left transition-colors active:bg-slate-100 select-none
+                    ${abierto ? "bg-slate-50/80 border-b border-slate-100" : "hover:bg-slate-50"}`}
       >
         {/* Ícono del tipo de formulario */}
-        <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0
-                        ${cfg?.bg} ${cfg?.border} border`}
-        >
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg?.bg} ${cfg?.border} border shadow-sm`}>
           {Icon && <Icon size={16} className={cfg?.color} />}
         </div>
 
-        {/* Nombre y estado del formulario */}
+        {/* Nombre y estado */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-slate-800 truncate">
+          <p className="text-xs sm:text-sm font-bold text-slate-800 truncate">
             {cfg?.label}
           </p>
           <p className="text-[10px] text-slate-400 font-medium mt-0.5">
             {formato.completado && formato.fecha_llenado
-              ? `Completado · ${new Date(formato.fecha_llenado).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}`
+              ? `Completado · ${new Date(formato.fecha_llenado).toLocaleDateString("es-MX", { day: "2-digit", month: "short" })}`
               : "Pendiente de llenar"}
           </p>
         </div>
 
-        {/* Indicadores: completado y/o tiene imagen */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {formato.completado && (
-            <CheckCircle2 size={15} className="text-emerald-500" />
-          )}
-
-          {formato.imagen_url && (
-            <span title="Tiene imagen adjunta">
-              <Camera size={13} className="text-blue-400" />
-            </span>
-          )}
-
-          {abierto ? (
-            <ChevronUp size={16} className="text-slate-400" />
-          ) : (
-            <ChevronDown size={16} className="text-slate-400" />
-          )}
+        {/* Indicadores visuales agrupados */}
+        <div className="flex items-center gap-2 flex-shrink-0 ml-1">
+          {formato.completado && <CheckCircle2 size={15} className="text-emerald-500 flex-shrink-0" />}
+          {imageUrl && <Camera size={14} className="text-blue-500 flex-shrink-0" />}
+          <div className="p-1 rounded-lg bg-slate-100/50 text-slate-400">
+            {abierto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </div>
         </div>
       </button>
 
       {/* ── Contenido expandible ── */}
       {abierto && (
-        <div className="px-4 sm:px-6 pb-6 space-y-5 bg-slate-50/50 border-t border-slate-100">
-          {/* ── Campos dinámicos del formulario ── */}
-          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="px-3 sm:px-5 pb-5 space-y-5 bg-slate-50/30 animate-fade-in">
+          
+          {/* Grid de Campos Dinámicos */}
+          <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
             {campos.map((campo) => (
               <div
                 key={campo.key}
-                className={
-                  campo.tipo === "textarea" || campo.tipo === "checkboxes"
-                    ? "sm:col-span-2"
-                    : ""
-                }
+                className={campo.tipo === "textarea" || campo.tipo === "checkboxes" ? "sm:col-span-2" : ""}
               >
                 {/* Etiqueta del campo */}
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
-                  {campo.label}
-                  {campo.requerido && (
-                    <span className="text-red-400 ml-1">*</span>
-                  )}
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  {campo.label} {campo.requerido && <span className="text-red-400 ml-0.5">*</span>}
                 </label>
 
-                {/* ── Área de texto ── */}
+                {/* Tipo: Textarea */}
                 {campo.tipo === "textarea" && (
                   <textarea
                     value={datos[campo.key] ?? ""}
                     rows={3}
                     onChange={(e) => setField(campo.key, e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5
-                               text-sm text-slate-700 outline-none resize-none
-                               focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 outline-none resize-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
                   />
                 )}
 
-                {/* ── Selector ── */}
+                {/* Tipo: Select */}
                 {campo.tipo === "select" && (
                   <select
                     value={datos[campo.key] ?? ""}
                     onChange={(e) => setField(campo.key, e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5
-                               text-sm text-slate-700 outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all cursor-pointer"
                   >
                     <option value="">Seleccionar...</option>
                     {campo.opciones?.map((op) => (
-                      <option key={op} value={op}>
-                        {op}
-                      </option>
+                      <option key={op} value={op}>{op}</option>
                     ))}
                   </select>
                 )}
 
-                {/*
-                 * ── Checkboxes múltiples ──
-                 * Replica exactamente las casillas del formato físico de papel.
-                 * Los valores seleccionados se guardan como array en datos_json.
-                 */}
+                {/* Tipo: Checkboxes múltiples */}
                 {campo.tipo === "checkboxes" && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
                     {campo.opciones?.map((op) => {
                       const arr: string[] = datos[campo.key] ?? [];
                       const marcado: boolean = arr.includes(op);
@@ -254,170 +197,122 @@ export default function FormularioAcordeon({
                           onClick={() => {
                             setField(
                               campo.key,
-                              marcado
-                                ? arr.filter((x) => x !== op)
-                                : [...arr, op],
+                              marcado ? arr.filter((x) => x !== op) : [...arr, op],
                             );
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border
-                                      text-xs font-bold transition-all
-                                      ${
-                                        marcado
-                                          ? "bg-blue-600 border-blue-600 text-white"
-                                          : "bg-white border-slate-200 text-slate-500 hover:border-blue-300"
-                                      }`}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-left text-xs font-bold transition-all active:scale-95
+                                      ${marcado ? "bg-blue-600 border-blue-600 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}
                         >
-                          {/* Caja visual del checkbox */}
-                          <div
-                            className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center
-                              ${marcado ? "bg-white border-white" : "border-slate-300"}`}
-                          >
+                          <div className={`w-3.5 h-3.5 rounded flex items-center justify-center flex-shrink-0 border ${marcado ? "bg-white border-white text-blue-600" : "border-slate-300 bg-slate-50"}`}>
                             {marcado && (
-                              <svg
-                                width="8"
-                                height="8"
-                                fill="none"
-                                viewBox="0 0 12 12"
-                              >
-                                <path
-                                  d="M2 6l3 3 5-5"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
+                              <svg width="8" height="8" fill="none" viewBox="0 0 12 12">
+                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </div>
-                          {op}
+                          <span className="truncate max-w-[180px] xs:max-w-none">{op}</span>
                         </button>
                       );
                     })}
                   </div>
                 )}
 
-                {/* ── Input texto, fecha o número ── */}
+                {/* Tipo: Inputs estándares (text, date) */}
                 {(campo.tipo === "text" || campo.tipo === "date") && (
                   <input
                     type={campo.tipo}
                     value={datos[campo.key] ?? ""}
                     onChange={(e) => setField(campo.key, e.target.value)}
-                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5
-                               text-sm text-slate-700 outline-none
-                               focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 sm:py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 transition-all"
                   />
                 )}
               </div>
             ))}
           </div>
 
-          {/* ── Sección: Adjuntar foto del formato físico firmado ── */}
-          <div className="border-t border-slate-200 pt-5">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-              Foto del Formato Físico Firmado (Evidencia)
+          {/* ── Sección: Evidencia Fotográfica / Adjunto ── */}
+          <div className="border-t border-slate-100 pt-4.5">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
+              Foto del Formato Físico Firmado
             </p>
 
-            <div className="flex flex-col sm:flex-row items-start gap-4">
-              {/*
-               * Miniatura de la imagen adjunta.
-               * Si no hay imagen muestra el ícono de cámara como placeholder.
-               */}
-              <div
-                className="w-full sm:w-24 h-32 sm:h-24 rounded-2xl bg-white border-2 border-dashed
-                              border-slate-200 flex-shrink-0 overflow-hidden
-                              flex items-center justify-center"
-              >
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3.5">
+              {/* Miniatura / Placeholder */}
+              <div className="w-full sm:w-20 h-28 sm:h-20 rounded-xl bg-white border border-dashed border-slate-200 flex-shrink-0 overflow-hidden flex items-center justify-center bg-slate-50/50 shadow-inner">
                 {imageUrl ? (
-                  <img
-                    src={imageUrl}
-                    alt="Formato físico adjunto"
-                    className="w-full h-full object-cover"
-                  />
+                  <img src={imageUrl} alt="Evidencia digital" className="w-full h-full object-cover" />
                 ) : (
-                  <Camera size={24} className="text-slate-300" />
+                  <Camera size={20} className="text-slate-300" />
                 )}
               </div>
 
-              {/* Controles de carga y acceso */}
-              <div className="flex-1">
-                <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-                  Adjunta la foto o escaneo del formato físico con firmas como
-                  respaldo digital. Acepta imágenes JPG, PNG o PDF.
+              {/* Textos y Acciones de Archivo */}
+              <div className="flex-1 flex flex-col justify-between min-w-0">
+                <p className="text-[11px] sm:text-xs text-slate-400 mb-2.5 leading-normal">
+                  Respaldo con firmas. Acepta imágenes (JPG, PNG) o archivos PDF.
                 </p>
 
-                {/* Botón de carga de archivo (label actúa como botón del input oculto) */}
-                <label
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl
-                                   text-xs font-bold cursor-pointer transition-all
-                                   ${
-                                     uploading
-                                       ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                       : "bg-slate-800 hover:bg-slate-700 text-white"
-                                   }`}
-                >
-                  {uploading ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Upload size={13} />
-                  )}
-                  {uploading
-                    ? "Subiendo..."
-                    : imageUrl
-                      ? "Cambiar foto"
-                      : "Adjuntar foto"}
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    className="hidden"
-                    onChange={handleUpload}
-                    disabled={uploading}
-                  />
-                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Botón estructural de Carga */}
+                  <label
+                    className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all active:scale-95 shadow-sm
+                                ${uploading ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-slate-800 hover:bg-slate-700 text-white"}`}
+                  >
+                    {uploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                    <span>{uploading ? "Subiendo..." : imageUrl ? "Cambiar archivo" : "Adjuntar foto"}</span>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      className="hidden"
+                      onChange={handleUpload}
+                      disabled={uploading}
+                    />
+                  </label>
 
-                {/* Enlace para ver el adjunto en pestaña nueva */}
-                {imageUrl && (
-                  <div className="mt-2 flex items-center gap-3">
-                    <a
-                      href={imageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] text-blue-500 hover:underline font-bold"
-                    >
-                      Ver adjunto completo →
-                    </a>
-                    <button
-                      onClick={() => setImageUrl("")}
-                      className="text-[11px] text-red-400 hover:text-red-600 font-bold"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                )}
+                  {/* Acciones adicionales si ya existe una URL */}
+                  {imageUrl && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end sm:justify-start mt-1 sm:mt-0">
+                      <a
+                        href={imageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 text-[11px] text-blue-600 hover:bg-blue-50 font-bold rounded-lg transition-colors"
+                      >
+                        Ver archivo →
+                      </a>
+                      <button
+                        onClick={() => setImageUrl("")}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Eliminar adjunto"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ── Botón de guardado ── */}
-          <div className="flex justify-end pt-2">
+          {/* ── Botón de Guardado o Acción final ── */}
+          <div className="flex justify-end pt-1 border-t border-slate-100/60">
             <button
               onClick={handleGuardar}
               disabled={saving}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white
-                         px-5 py-2.5 rounded-xl font-bold text-sm
-                         shadow-md shadow-blue-200 disabled:opacity-60 transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white
+                         px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md shadow-blue-100 disabled:opacity-60 transition-all active:scale-[0.98]"
             >
-              {saving ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Save size={14} />
-              )}
-              {saving
-                ? "Guardando..."
-                : formato.completado
-                  ? "Actualizar Formulario"
-                  : "Marcar como Completado"}
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              <span>
+                {saving
+                  ? "Guardando..."
+                  : formato.completado
+                    ? "Actualizar Formulario"
+                    : "Marcar como Completado"}
+              </span>
             </button>
           </div>
+
         </div>
       )}
     </div>

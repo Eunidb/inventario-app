@@ -6,16 +6,10 @@
  * Carga todos los registros_formato del trabajo y los muestra en acordeón,
  * uno por cada tipo de formulario que aplica a ese trabajo.
  *
- * FUNCIONALIDAD:
- *   - Muestra el folio, título, área, prioridad y tipo del expediente.
- *   - Barra de progreso que indica cuántos formularios están completados.
- *   - Selector para cambiar el estado del expediente (abierto → completado, etc.).
- *   - Renderiza un <FormularioAcordeon> por cada registro_formato del trabajo.
- *
  * RESPONSIVE:
  *   - Mobile: ocupa toda la pantalla (w-full).
  *   - Desktop (lg+): panel lateral derecho de 672px de ancho (max-w-2xl).
- *   - El overlay oscuro cierra el panel al hacer clic fuera.
+ *   - Contenedores de inputs y listas optimizados con espaciados táctiles.
  */
 
 "use client";
@@ -24,11 +18,9 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/client";
 import { X, Save, Loader2 } from "lucide-react";
 import FormularioAcordeon from "./FormularioAcordeon";
-import { ESTADO_CONFIG, type EstadoTrabajo, type TipoFormato } from "./types";
+import { ESTADO_CONFIG, type EstadoTrabajo } from "./types";
 
-// ─── Props del componente ────────────────────────────────────────────────────
 interface PanelExpedienteProps {
-  /** Objeto del expediente de trabajo (fila de la tabla "trabajos") */
   trabajo: {
     id: number;
     folio: string;
@@ -38,29 +30,19 @@ interface PanelExpedienteProps {
     prioridad: string;
     estado: EstadoTrabajo;
   };
-  /** Función para cerrar el panel */
   onClose: () => void;
-  /**
-   * Función llamada después de guardar cambios.
-   * La página padre recarga la lista de expedientes.
-   */
   onUpdated: () => void;
 }
 
 export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelExpedienteProps) {
-
-  // ── Estado del panel ──────────────────────────────────────────────────────
-  const [formatos, setFormatos]           = useState<any[]>([]);
+  // ── Estados locales ───────────────────────────────────────────────────────
+  const [formatos, setFormatos] = useState<any[]>([]);
   const [loadingFormatos, setLoadingFormatos] = useState(true);
-
-  // Estado editable del expediente (para el selector de estado)
-  const [estado, setEstado]   = useState<EstadoTrabajo>(trabajo.estado);
-  const [saving, setSaving]   = useState(false);
-
-  // ID del formulario cuyo acordeón está abierto (solo uno a la vez)
+  const [estado, setEstado] = useState<EstadoTrabajo>(trabajo.estado);
+  const [saving, setSaving] = useState(false);
   const [acordeonAbierto, setAcordeonAbierto] = useState<number | null>(null);
 
-  // ── Cargar los formularios del expediente desde Supabase ─────────────────
+  // ── Cargar formularios desde Supabase ─────────────────────────────────────
   useEffect(() => {
     const cargarFormatos = async () => {
       setLoadingFormatos(true);
@@ -69,7 +51,7 @@ export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelEx
         .from("registros_formato")
         .select("*")
         .eq("trabajo_id", trabajo.id)
-        .order("id"); // Ordenar por ID mantiene el orden de creación
+        .order("id");
 
       if (!error) setFormatos(data ?? []);
       setLoadingFormatos(false);
@@ -77,7 +59,7 @@ export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelEx
     cargarFormatos();
   }, [trabajo.id]);
 
-  // ── Guardar cambio de estado del expediente ───────────────────────────────
+  // ── Actualizar estado global del expediente ──────────────────────────────
   const handleCambiarEstado = async () => {
     setSaving(true);
     const supabase = createClient();
@@ -85,7 +67,6 @@ export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelEx
       .from("trabajos")
       .update({
         estado,
-        // Si se marca como completado, registrar la fecha de cierre
         fecha_cierre: estado === "completado" ? new Date().toISOString() : null,
       })
       .eq("id", trabajo.id);
@@ -94,7 +75,7 @@ export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelEx
     setSaving(false);
   };
 
-  // ── Recargar formularios tras guardar uno ─────────────────────────────────
+  // ── Recargar al salvar un acordeón interno ────────────────────────────────
   const recargarFormatos = async () => {
     const supabase = createClient();
     const { data } = await supabase
@@ -103,153 +84,146 @@ export default function PanelExpediente({ trabajo, onClose, onUpdated }: PanelEx
       .eq("trabajo_id", trabajo.id)
       .order("id");
     setFormatos(data ?? []);
-    onUpdated(); // Actualiza la barra de progreso en la tabla principal
+    onUpdated();
   };
 
-  // ── Cálculos de progreso ──────────────────────────────────────────────────
-  const total     = formatos.length;
-  const completos = formatos.filter(f => f.completado).length;
+  // ── Cálculos de métricas de progreso ──────────────────────────────────────
+  const total = formatos.length;
+  const completos = formatos.filter((f) => f.completado).length;
   const pctProgreso = total > 0 ? Math.round((completos / total) * 100) : 0;
 
-  // Color de la barra de progreso según el porcentaje
   const colorBarra =
     pctProgreso === 100 ? "bg-emerald-500" :
     pctProgreso >= 50   ? "bg-blue-500"    :
     "bg-amber-500";
 
   return (
-    <div className="fixed inset-0 z-50 flex">
-      {/* Overlay — clic fuera cierra el panel */}
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Fondo traslúcido difuminado (Overlay) */}
       <div
-        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
-      {/*
-       * Panel lateral.
-       * Mobile:   ocupa toda la pantalla (w-full).
-       * Desktop:  se desliza desde la derecha con max-w-2xl (672px).
-       */}
-      <div className="ml-auto relative bg-white w-full max-w-2xl h-full
-                      flex flex-col shadow-2xl overflow-hidden">
-
-        {/* ── Cabecera del expediente ── */}
-        <div className="px-5 sm:px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex-shrink-0">
-
-          {/* Fila: folio + título + botón cerrar */}
-          <div className="flex items-start justify-between gap-4">
+      {/* Contenedor principal del Panel Deslizable */}
+      <div className="relative bg-white w-full max-w-2xl h-full flex flex-col shadow-2xl z-10 animate-slide-in">
+        
+        {/* ── Cabecera Superior Fija ── */}
+        <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-slate-50/70 flex-shrink-0">
+          
+          {/* Fila superior: Meta info y botón de salida */}
+          <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              {/* Folio con estilo monoespaciado */}
-              <span className="font-mono text-xs font-black text-blue-600 bg-blue-50
-                               px-2.5 py-1 rounded-lg inline-block">
+              <span className="font-mono text-[10px] sm:text-xs font-black text-blue-600 bg-blue-50 px-2.5 py-0.5 sm:py-1 rounded-md inline-block">
                 {trabajo.folio}
               </span>
-              <h2 className="text-base sm:text-lg font-black text-slate-800 mt-2 leading-tight">
+              <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-800 mt-1.5 leading-snug break-words">
                 {trabajo.titulo}
               </h2>
-              {/* Meta del expediente en una línea */}
-              <p className="text-xs text-slate-500 font-medium mt-1 truncate">
-                {trabajo.area_solicitante}
-                {" · "}
-                {trabajo.tipo_trabajo}
-                {" · Prioridad: "}
-                {trabajo.prioridad}
+              <p className="text-[11px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                {trabajo.area_solicitante} · {trabajo.tipo_trabajo} · <span className="font-semibold text-slate-500">Prioridad: {trabajo.prioridad}</span>
               </p>
             </div>
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl hover:bg-slate-200 text-slate-400 transition-colors flex-shrink-0"
+              className="p-2 -mr-1 rounded-xl hover:bg-slate-200/70 text-slate-400 active:scale-95 transition-all flex-shrink-0"
+              aria-label="Cerrar panel"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
 
-          {/* ── Barra de progreso de formularios ── */}
-          <div className="mt-4">
-            <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5">
-              <span>Formularios completados</span>
-              <span>{completos} de {total}</span>
+          {/* Sección de Progreso */}
+          <div className="mt-4 bg-white border border-slate-100 rounded-xl p-2.5 sm:p-3 shadow-sm">
+            <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              <span>Progreso de gestión</span>
+              <span className="text-slate-600">{completos} / {total} Completos</span>
             </div>
-            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${colorBarra}`}
+                className={`h-full rounded-full transition-all duration-500 ease-out ${colorBarra}`}
                 style={{ width: `${pctProgreso}%` }}
               />
             </div>
           </div>
 
-          {/* ── Selector de estado del expediente ── */}
-          <div className="flex items-center gap-2 mt-4">
-            <select
-              value={estado}
-              onChange={e => setEstado(e.target.value as EstadoTrabajo)}
-              className="flex-1 bg-white border border-slate-200 rounded-xl
-                         px-3 py-2 text-sm text-slate-700 outline-none
-                         focus:ring-2 focus:ring-blue-100"
-            >
-              {Object.entries(ESTADO_CONFIG).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
+          {/* Barra de herramientas / Selector de estado global */}
+          <div className="flex items-center gap-2 mt-3.5">
+            <div className="relative flex-1">
+              <select
+                value={estado}
+                onChange={(e) => setEstado(e.target.value as EstadoTrabajo)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-700 font-medium outline-none appearance-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400 cursor-pointer transition-all"
+              >
+                {Object.entries(ESTADO_CONFIG).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-400">
+                <svg width="10" height="10" fill="none" viewBox="0 0 10 10">
+                  <path d="M2 4l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
 
             <button
               onClick={handleCambiarEstado}
               disabled={saving || estado === trabajo.estado}
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white
-                         px-4 py-2 rounded-xl text-sm font-bold
-                         disabled:opacity-50 transition-all flex-shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold disabled:opacity-40 transition-all active:scale-95 flex-shrink-0 shadow-sm"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              <span className="hidden sm:inline">Guardar</span>
+              <span className="hidden xs:inline">Guardar Estado</span>
             </button>
           </div>
+
         </div>
 
-        {/* ── Lista de formularios en acordeón ── */}
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+        {/* ── Zona Central de Acordeones (Scrollable) ── */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/50">
           {loadingFormatos ? (
-            // Esqueleto de carga mientras se obtienen los formularios
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="h-14 bg-slate-100 rounded-2xl animate-pulse" />
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-14 bg-white border border-slate-100 rounded-2xl animate-pulse" />
               ))}
             </div>
           ) : formatos.length === 0 ? (
-            <div className="p-10 text-center text-slate-400 text-sm font-medium">
-              No se encontraron formularios para este expediente
+            <div className="p-8 text-center text-slate-400 text-xs sm:text-sm font-medium">
+              No hay formatos dinámicos asignados a este tipo de expediente.
             </div>
           ) : (
-            formatos.map(formato => (
-              <FormularioAcordeon
-                key={formato.id}
-                formato={formato}
-                abierto={acordeonAbierto === formato.id}
-                onToggle={() =>
-                  setAcordeonAbierto(
-                    acordeonAbierto === formato.id ? null : formato.id
-                  )
-                }
-                onSaved={recargarFormatos}
-              />
-            ))
+            <div className="p-4 space-y-3">
+              {formatos.map((formato) => (
+                <FormularioAcordeon
+                  key={formato.id}
+                  formato={formato}
+                  abierto={acordeonAbierto === formato.id}
+                  onToggle={() =>
+                    setAcordeonAbierto(
+                      acordeonAbierto === formato.id ? null : formato.id
+                    )
+                  }
+                  onSaved={recargarFormatos}
+                />
+              ))}
+            </div>
           )}
         </div>
 
-        {/* ── Pie del panel ── */}
-        <div className="px-5 sm:px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] text-slate-400 font-mono">
-              Expediente #{trabajo.id}
-            </p>
-            {/* Resumen rápido de progreso */}
-            <p className="text-xs font-bold text-slate-500">
+        {/* ── Pie de Panel Fijo ── */}
+        <div className="px-4 py-3 sm:px-6 sm:py-3.5 border-t border-slate-100 bg-white flex-shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono text-slate-400 tracking-wider">
+              ID SISTEMA: #{trabajo.id}
+            </span>
+            <span className="text-[11px] font-bold text-slate-500">
               {pctProgreso === 100
-                ? "✓ Todos los formularios completados"
-                : `${total - completos} formulario${total - completos !== 1 ? "s" : ""} pendiente${total - completos !== 1 ? "s" : ""}`}
-            </p>
+                ? "✓ Todo completado"
+                : `Pendientes: ${total - completos} módulo(s)`}
+            </span>
           </div>
         </div>
+
       </div>
     </div>
   );

@@ -86,7 +86,7 @@ export default function ModalNuevoTrabajo({ onClose, onSaved }: ModalNuevoTrabaj
           
           {/* Nota informativa */}
           <div className="bg-blue-50/70 border border-blue-100 rounded-xl sm:rounded-2xl px-4 py-2.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-            Se generarán automáticamente los formatos de <strong className="text-blue-700">Solicitud de Trabajo</strong> y <strong className="text-blue-700">Reporte de Servicio</strong>.
+            Se generarán automáticamente los formatos de <strong className="text-blue-700">Solicitud de Trabajo</strong> y <strong className="text-blue-700">Reporte de Servicio</strong>, marca abajo si el trabajo requiere formularios adicionales.
           </div>
 
           {/* Campo: Descripción */}

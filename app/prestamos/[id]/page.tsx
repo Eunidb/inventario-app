@@ -21,7 +21,6 @@ export default function DetallePrestamoPage() {
   useEffect(() => {
     async function cargarDetalle() {
       try {
-        // 🔥 FIX 1: asegurar id string
         const idStr = Array.isArray(id) ? id[0] : id;
 
         const { data, error } = await supabase
@@ -81,7 +80,7 @@ export default function DetallePrestamoPage() {
 
             <button 
               onClick={() => window.print()}
-              className="bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-xs"
+              className="flex items-center gap-2 bg-slate-800 text-white px-6 py-3 rounded-2xl font-black text-xs"
             >
               <Printer size={18} /> Imprimir
             </button>
@@ -89,27 +88,26 @@ export default function DetallePrestamoPage() {
 
           {/* Card */}
           <div className="bg-white rounded-3xl shadow-xl border p-10 space-y-8">
-            
             <div>
               <h1 className="text-2xl font-black">
                 Préstamo #{prestamo.id}
               </h1>
-              <p className="text-sm text-slate-400">{prestamo.estado}</p>
+              <p className="text-sm text-slate-400 uppercase tracking-wider mt-1">{prestamo.estado}</p>
             </div>
 
             {/* Personas */}
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <p className="text-xs text-slate-400">Solicitante</p>
-                <p className="font-bold">
+                <p className="font-bold text-slate-800 mt-1">
                   {prestamo.solicitante_externo || prestamo.usuario?.nombre_completo}
                 </p>
               </div>
 
               <div>
                 <p className="text-xs text-slate-400">Autorizador</p>
-                <p className="flex items-center gap-2 font-bold">
-                  <ShieldCheck size={16} />
+                <p className="flex items-center gap-2 font-bold text-slate-800 mt-1">
+                  <ShieldCheck size={16} className="text-blue-500" />
                   {prestamo.autorizador?.nombre_completo}
                 </p>
               </div>
@@ -117,13 +115,20 @@ export default function DetallePrestamoPage() {
 
             {/* Artículos */}
             <div>
-              <p className="text-xs text-slate-400 mb-2">Artículos</p>
+              <p className="text-xs text-slate-400 mb-3">Artículos Prestados</p>
               <ul className="space-y-2">
                 {prestamo.detalle_prestamo?.map((d: any, i: number) => (
-                  <li key={i} className="border p-3 rounded-xl">
-                    <p className="font-bold">{d.inventario?.nombre}</p>
-                    <p className="text-xs text-slate-400">{d.inventario?.clave}</p>
-                    <p className="text-sm">Cantidad: {d.cantidad}</p>
+                  <li key={i} className="border border-slate-100 bg-slate-50/50 p-4 rounded-xl flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-slate-800">{d.inventario?.nombre}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">Clave: {d.inventario?.clave}</p>
+                      {d.inventario?.descripcion && (
+                        <p className="text-xs text-slate-500 mt-1 italic">{d.inventario.descripcion}</p>
+                      )}
+                    </div>
+                    <span className="text-sm font-black bg-white px-3 py-1 rounded-lg border text-slate-700 shadow-sm">
+                      Cant: {d.cantidad}
+                    </span>
                   </li>
                 ))}
               </ul>

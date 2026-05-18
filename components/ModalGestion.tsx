@@ -1,6 +1,6 @@
 /**
  * @file ModalGestion.tsx
- * @description Modal completo con todos los campos del inventario.
+ * @description Modal completo protegido contra exploits de subida de archivos, payloads alterados y entradas maliciosas.
  */
 
 "use client";
@@ -56,6 +56,10 @@ const FORM_INITIAL = {
   departamento_id: undefined as number | undefined,
 };
 
+// Configuraciones de seguridad para archivos
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
 export default function ModalGestion({
   isOpen,
   onClose,
@@ -84,30 +88,40 @@ export default function ModalGestion({
   }, [isOpen]);
 
   useEffect(() => {
-    if (item) {
-      setForm({
-        clave: item.clave,
-        nombre: item.nombre,
-        descripcion: item.descripcion ?? "",
-        marca: item.marca ?? "",
-        modelo: item.modelo ?? "",
-        numero_serie: item.numero_serie ?? "",
-        stock_total: item.stock_total,
-        stock_disponible: item.stock_disponible,
-        stock_minimo: item.stock_minimo,
-        unidad_medida: item.unidad_medida ?? "pieza",
-        ubicacion: item.ubicacion ?? "",
-        estado: item.estado,
-        imagen_url: item.imagen_url ?? "",
-        categoria_id: item.categoria_id,
-        departamento_id: item.departamento_id,
-      });
-      setImagePreview(item.imagen_url ?? null);
+    if (isOpen) {
+      if (item) {
+        setForm({
+          clave: item.clave,
+          nombre: item.nombre,
+          descripcion: item.descripcion ?? "",
+          marca: item.marca ?? "",
+          modelo: item.modelo ?? "",
+          numero_serie: item.numero_serie ?? "",
+          stock_total: item.stock_total,
+          stock_disponible: item.stock_disponible,
+          stock_minimo: item.stock_minimo,
+          unidad_medida: item.unidad_medida ?? "pieza",
+          ubicacion: item.ubicacion ?? "",
+          estado: item.estado,
+          imagen_url: item.imagen_url ?? "",
+          categoria_id: item.categoria_id,
+          departamento_id: item.departamento_id,
+        });
+        setImagePreview(item.imagen_url ?? null);
+      } else {
+        setForm(FORM_INITIAL);
+        setImagePreview(null);
+      }
+      setImageFile(null);
+      setError(null);
     } else {
       setForm(FORM_INITIAL);
+      if (imagePreview && !item) {
+        URL.revokeObjectURL(imagePreview); // Evita fugas de memoria
+      }
       setImagePreview(null);
+      setImageFile(null);
     }
-    setError(null);
   }, [item, isOpen]);
 
   const handleChange = (
@@ -125,6 +139,20 @@ export default function ModalGestion({
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // 1. HARDENING: Validar el tipo real de archivo (MIME Type) no sólo la extensión
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError("Exploit prevent: El tipo de archivo no está permitido. Solo imágenes JPG, PNG, WEBP o GIF.");
+      return;
+    }
+
+    // 2. HARDENING: Validar tamaño límite real en bytes
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError("El archivo supera el límite máximo de 5MB.");
+      return;
+    }
+
+    setError(null);
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
   };
@@ -133,39 +161,85 @@ export default function ModalGestion({
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-    try {
-      if (!form.clave.trim() || !form.nombre.trim())
-        throw new Error("Clave y nombre son obligatorios.");
-      if (!form.categoria_id) throw new Error("Selecciona una categoría.");
 
-      let imagenUrl = form.imagen_url;
-      if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const fileName = `${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from("inventario")
-          .upload(fileName, imageFile);
-        if (!uploadError) {
-          const { data } = supabase.storage
-            .from("inventario")
-            .getPublicUrl(fileName);
-          imagenUrl = data.publicUrl;
-        }
+    try {
+      // 3. HARDENING: Validaciones estrictas previas al submit
+      const claveClean = form.clave.trim();
+      const nombreClean = form.nombre.trim();
+      
+      if (!claveClean || !nombreClean) {
+        throw new Error("Clave y nombre son campos obligatorios.");
+      }
+      if (!form.categoria_id || form.categoria_id <= 0) {
+        throw new Error("Selecciona una categoría válida.");
       }
 
-      const payload = { ...form, imagen_url: imagenUrl };
+      let imagenUrl = form.imagen_url;
+      
+      if (imageFile) {
+        // 4. HARDENING: Sanitizar extensión y regenerar el nombre de archivo de forma aleatoria
+        // Nunca confíes en el `imageFile.name` provisto por el usuario
+        const cleanExt = imageFile.name.split(".").pop()?.toLowerCase() || "png";
+        const safeExtensions = ["jpg", "jpeg", "png", "webp", "gif"];
+        
+        if (!safeExtensions.includes(cleanExt)) {
+          throw new Error("Extensión de archivo inválida.");
+        }
+
+        // Generar un UUID o string pseudoaleatorio seguro para mitigar Path Traversal o sobreescritura
+        const cryptoPath = crypto.randomUUID 
+          ? crypto.randomUUID() 
+          : `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+        
+        const safeFileName = `${cryptoPath}.${cleanExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("inventario")
+          .upload(safeFileName, imageFile, {
+            cacheControl: "3600",
+            upsert: false // No permitir que un archivo suplante a otro existente
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+          .from("inventario")
+          .getPublicUrl(safeFileName);
+        imagenUrl = data.publicUrl;
+      }
+
+      // 5. HARDENING: White-listing del Payload (No inyectar todo el objeto 'form' indiscriminadamente)
+      // Esto previene inyecciones de propiedades no deseadas en Postgres
+      const safePayload = {
+        clave: claveClean,
+        nombre: nombreClean,
+        descripcion: form.descripcion.trim(),
+        marca: form.marca.trim(),
+        modelo: form.modelo.trim(),
+        numero_serie: form.numero_serie.trim(),
+        stock_total: Math.max(0, Number(form.stock_total)),
+        stock_disponible: Math.max(0, Number(form.stock_disponible)),
+        stock_minimo: Math.max(0, Number(form.stock_minimo)),
+        unidad_medida: form.unidad_medida.trim() || "pieza",
+        ubicacion: form.ubicacion.trim(),
+        estado: form.estado,
+        imagen_url: imagenUrl,
+        categoria_id: Number(form.categoria_id),
+        departamento_id: form.departamento_id ? Number(form.departamento_id) : null,
+      };
+
       const { error: dbError } = item
         ? await supabase
             .from("inventario")
-            .update({ ...payload, updated_at: new Date().toISOString() })
+            .update({ ...safePayload, updated_at: new Date().toISOString() })
             .eq("id", item.id)
-        : await supabase.from("inventario").insert(payload);
+        : await supabase.from("inventario").insert(safePayload);
 
       if (dbError) throw dbError;
       onSaved();
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Ocurrió un error de seguridad o de red.");
     } finally {
       setIsLoading(false);
     }
@@ -291,7 +365,7 @@ export default function ModalGestion({
             </div>
           </div>
 
-          {/* Fila 4: Stocks (Panel destacado) */}
+          {/* Fila 4: Stocks */}
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="space-y-1.5 text-center sm:text-left">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -302,6 +376,7 @@ export default function ModalGestion({
                 name="stock_total"
                 value={form.stock_total}
                 onChange={handleChange}
+                min={0}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-blue-600 outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -314,6 +389,7 @@ export default function ModalGestion({
                 name="stock_disponible"
                 value={form.stock_disponible}
                 onChange={handleChange}
+                min={0}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-emerald-600 outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -326,6 +402,7 @@ export default function ModalGestion({
                 name="stock_minimo"
                 value={form.stock_minimo}
                 onChange={handleChange}
+                min={0}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-red-600 outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
@@ -430,6 +507,7 @@ export default function ModalGestion({
                   <img
                     src={imagePreview}
                     className="w-full h-full object-cover"
+                    alt="Previsualización"
                   />
                 ) : (
                   <ImageIcon size={32} className="text-slate-200" />

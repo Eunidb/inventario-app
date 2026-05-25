@@ -1,59 +1,154 @@
 /**
  * @file components/formatos/types.ts
+ * @description Tipos, interfaces y configuraciones visuales compartidos
+ *   por todos los componentes del módulo de Formatos de Trabajo.
+ *
+ * ¿Por qué centralizar aquí?
+ *   - Evita duplicar tipos entre page.tsx, PanelExpediente y cada Form*.
+ *   - El page.tsx importa TrabajoExpediente para tipado estricto de useState.
+ *   - ESTADO_CONFIG y FORMATO_CONFIG son la única fuente de verdad para
+ *     etiquetas, íconos y clases CSS de badges en toda la UI del módulo.
  */
-import { LucideIcon, ClipboardList, FileCheck, Package, ShoppingCart, FlaskConical } from "lucide-react";
 
-export type EstadoTrabajo = "pendiente" | "en_progreso" | "completado";
+import {
+  ClipboardList,  // Solicitud de Trabajo
+  Wrench,         // Reporte de Servicio
+  Cog,            // Registro de Maquinaria
+  ShoppingCart,   // Solicitud de Compra
+  FlaskConical,   // Registro de Lab.
+  Clock,          // Estado: Abierto
+  PlayCircle,     // Estado: En Proceso
+  PauseCircle,    // Estado: En Espera
+  CheckCircle2,   // Estado: Completado
+  XCircle,        // Estado: Cancelado
+} from "lucide-react";
 
+// ─── Enums de estado y tipo ──────────────────────────────────────────────────
+
+/** Estados posibles de un expediente de trabajo (espejo del ENUM en Supabase) */
+export type EstadoTrabajo =
+  | "abierto"
+  | "en_proceso"
+  | "en_espera"
+  | "completado"
+  | "cancelado";
+
+/** Tipos de formulario físico (espejo del ENUM tipo_formato_enum en Supabase) */
+export type TipoFormato =
+  | "solicitud_trabajo"
+  | "reporte_servicio"
+  | "registro_maquinaria"
+  | "solicitud_compra"
+  | "registro_lab_produccion";
+
+// ─── Interfaces de las tablas ────────────────────────────────────────────────
+
+/** Fila de registros_formato tal como la devuelve el SELECT del page */
 export interface RegistroFormato {
   id: number;
-  trabajo_id: number;
-  tipo: "solicitud" | "reporte" | "maquinaria" | "compra" | "laboratorio";
-  datos_json: Record<string, any>;
-  imagen_url: string | null;
+  tipo: TipoFormato;
   completado: boolean;
-  completado_por: string | null;
-  fecha_llenado: string | null;
+  imagen_url: string | null;
+  datos_json?: Record<string, any>;
+  fecha_llenado?: string | null;
+  completado_por?: string | null;
+  trabajo_id?: number;
+  updated_at?: string;
 }
 
-export const ESTADO_CONFIG: Record<EstadoTrabajo, { label: string; color: string }> = {
-  pendiente: { label: "Pendiente", color: "text-amber-600 bg-amber-50 border-amber-100" },
-  en_progreso: { label: "En Progreso", color: "text-blue-600 bg-blue-50 border-blue-100" },
-  completado: { label: "Completado", color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+/**
+ * Expediente de trabajo con las relaciones que trae el SELECT del page.
+ * Se usa como tipo de useState<TrabajoExpediente[]> y para los props
+ * de ModalNuevoTrabajo y PanelExpediente.
+ */
+export interface TrabajoExpediente {
+  id: number;
+  folio: string | null;
+  titulo: string;
+  estado: EstadoTrabajo;
+  area_solicitante: string | null;
+  prioridad: string | null;
+  tipo_trabajo: string | null;
+  maquina: string | null;           // Nombre/referencia de la máquina (campo opcional)
+  observaciones: string | null;
+  requiere_compra: boolean;
+  requiere_registro_maquinaria: boolean;
+  requiere_registro_lab: boolean;
+  departamento_id: number | null;
+  creado_por: string | null;
+  atendido_por: string | null;
+  fecha_apertura: string;
+  fecha_cierre: string | null;
+  updated_at: string;
+  // Relaciones JOIN incluidas en el SELECT
+  creador: { nombre_completo: string } | null;
+  departamento: { nombre: string } | null;
+  registros_formato: RegistroFormato[];
+}
+
+// ─── Configuración visual por estado del expediente ─────────────────────────
+//   Usado en: badges de la tabla, selector de estado en PanelExpediente,
+//             opción del <select> de filtro en page.tsx.
+export const ESTADO_CONFIG: Record<
+  EstadoTrabajo,
+  { label: string; cls: string; Icon: React.FC<any> }
+> = {
+  abierto: {
+    label: "Abierto",
+    cls: "bg-blue-50 text-blue-700 border-blue-200",
+    Icon: Clock,
+  },
+  en_proceso: {
+    label: "En Proceso",
+    cls: "bg-amber-50 text-amber-700 border-amber-200",
+    Icon: PlayCircle,
+  },
+  en_espera: {
+    label: "En Espera",
+    cls: "bg-slate-100 text-slate-600 border-slate-200",
+    Icon: PauseCircle,
+  },
+  completado: {
+    label: "Completado",
+    cls: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    Icon: CheckCircle2,
+  },
+  cancelado: {
+    label: "Cancelado",
+    cls: "bg-red-50 text-red-700 border-red-200",
+    Icon: XCircle,
+  },
 };
 
-export const FORMATO_CONFIG: Record<string, { label: string; bg: string; border: string; color: string; Icon: LucideIcon }> = {
-  solicitud: { label: "Solicitud de Trabajo", bg: "bg-blue-50", border: "border-blue-100", color: "text-blue-600", Icon: ClipboardList },
-  reporte: { label: "Reporte de Servicio", bg: "bg-indigo-50", border: "border-indigo-100", color: "text-indigo-600", Icon: FileCheck },
-  maquinaria: { label: "Registro de Maquinaria", bg: "bg-sky-50", border: "border-sky-100", color: "text-sky-600", Icon: Package },
-  compra: { label: "Solicitud de Compra", bg: "bg-cyan-50", border: "border-cyan-100", color: "text-cyan-600", Icon: ShoppingCart },
-  laboratorio: { label: "Registro Lab. Medicamentos", bg: "bg-teal-50", border: "border-teal-100", color: "text-teal-600", Icon: FlaskConical },
-};
-
-export const CAMPOS_FORMULARIO: Record<string, Array<{ key: string; label: string; tipo: "text" | "textarea" | "select" | "date" | "checkboxes"; requerido: boolean; opciones?: string[] }>> = {
-  solicitud: [
-    { key: "solicitante", label: "Nombre del Solicitante", tipo: "text", requerido: true },
-    { key: "descripcion_falla", label: "Descripción Detallada de la Falla", tipo: "textarea", requerido: true },
-    { key: "equipo_afectado", label: "Tag / Identificador del Equipo", tipo: "text", requerido: true }
-  ],
-  reporte: [
-    { key: "tecnico", label: "Técnico Asignado", tipo: "text", requerido: true },
-    { key: "acciones_tomadas", label: "Acciones Correctivas Realizadas", tipo: "textarea", requerido: true },
-    { key: "tipo_paro", label: "Impacto en Producción", tipo: "select", requerido: true, opciones: ["Sin Paro", "Paro Parcial", "Paro Total"] },
-    { key: "fecha_reparacion", label: "Fecha de Finalización", tipo: "date", requerido: true }
-  ],
-  maquinaria: [
-    { key: "horas_maquina", label: "Horómetro Actual (Hrs)", tipo: "text", requerido: true },
-    { key: "condicion", label: "Condición del Equipo", tipo: "select", requerido: true, opciones: ["Operativo", "Degradado", "Fuera de Servicio"] },
-    { key: "puntos_inspeccion", label: "Puntos de Inspección Críticos", tipo: "checkboxes", requerido: true, opciones: ["Lubricación", "Alineación", "Aislamiento Eléctrico", "Fugas"] }
-  ],
-  compra: [
-    { key: "refaccion", label: "Refacción o Material Requerido", tipo: "text", requerido: true },
-    { key: "cantidad", label: "Cantidad Solicitada", tipo: "text", requerido: true },
-    { key: "proveedor_sugerido", label: "Proveedor Sugerido", tipo: "text", requerido: false }
-  ],
-  laboratorio: [
-    { key: "no_lote", label: "Número de Lote Afectado", tipo: "text", requerido: true },
-    { key: "desinfeccion", label: "Protocolo de Sanitización Aplicado", tipo: "select", requerido: true, opciones: ["Alineado a NOM-059", "Limpieza Estándar", "N/A"] }
-  ]
+// ─── Configuración visual por tipo de formulario ─────────────────────────────
+//   Usado en: íconos apilados de progreso en la tabla, lista del PanelExpediente.
+export const FORMATO_CONFIG: Record<
+  TipoFormato,
+  { label: string; Icon: React.FC<any>; color: string }
+> = {
+  solicitud_trabajo: {
+    label: "Solicitud de Trabajo",
+    Icon: ClipboardList,
+    color: "text-blue-600",
+  },
+  reporte_servicio: {
+    label: "Reporte de Servicio",
+    Icon: Wrench,
+    color: "text-purple-600",
+  },
+  registro_maquinaria: {
+    label: "Registro de Maquinaria",
+    Icon: Cog,
+    color: "text-orange-600",
+  },
+  solicitud_compra: {
+    label: "Solicitud de Compra",
+    Icon: ShoppingCart,
+    color: "text-teal-600",
+  },
+  registro_lab_produccion: {
+    label: "Registro de Lab. Producción",
+    Icon: FlaskConical,
+    color: "text-rose-600",
+  },
 };

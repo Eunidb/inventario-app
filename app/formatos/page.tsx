@@ -1,18 +1,14 @@
 /**
  * @file app/formatos/page.tsx
- * @description Página principal del módulo de Formatos de Trabajo.
+ * @description Módulo de Formatos de Trabajo.
+ *   Tabla principal paginada con filtros, búsqueda de texto,
+ *   acciones CRUD y acceso al panel de llenado de formularios.
  *
- * Muestra la tabla de expedientes de mantenimiento con paginación,
- * filtros por estado y búsqueda por texto.
- *
- * COMPONENTES IMPORTADOS:
- *   - ModalNuevoTrabajo  → Modal para crear un nuevo expediente
- *   - PanelExpediente    → Panel lateral para ver y llenar los formularios
- *   (ambos en /components/formatos/)
- *
- * RESPONSIVE:
- *   - La tabla oculta columnas progresivamente en pantallas pequeñas.
- *   - Los modales y el panel se adaptan a mobile y desktop.
+ * CORRECCIONES aplicadas vs. el borrador original:
+ *   1. t.id es number (BIGSERIAL) → se usa String(t.id) en lugar de t.id.substring()
+ *   2. ModalNuevoTrabajo recibe prop `trabajo` para modo edición
+ *   3. PanelExpediente recibe prop `onEdit` para disparar el modal desde el panel
+ *   4. Importación de TipoFormato removida (no se usa directamente en este archivo)
  */
 
 "use client";
@@ -26,16 +22,17 @@ import {
   Plus,
   Search,
   Eye,
+  Pencil,
+  Trash2,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
   Camera,
 } from "lucide-react";
 import {
   ESTADO_CONFIG,
   FORMATO_CONFIG,
   type EstadoTrabajo,
-  type TipoFormato,
+  type TrabajoExpediente,
 } from "@/components/formatos/types";
 
 // ─── Constante: expedientes por página ──────────────────────────────────────
@@ -45,17 +42,43 @@ const PER_PAGE = 20;
 // COMPONENTE PRINCIPAL
 // ============================================================================
 export default function FormatosPage() {
-  // ── Estado de la tabla ────────────────────────────────────────────────────
-  const [trabajos, setTrabajos] = useState<any[]>([]);
+  // ── Estados de datos de la tabla ─────────────────────────────────────────
+  const [trabajos, setTrabajos] = useState<TrabajoExpediente[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<EstadoTrabajo | "">("");
 
-  // ── Control de modales ────────────────────────────────────────────────────
+  // ── Control de modales y panel lateral ───────────────────────────────────
   const [modalNuevo, setModalNuevo] = useState(false);
-  const [trabajoActivo, setTrabajoActivo] = useState<any | null>(null);
+  const [trabajoEditar, setTrabajoEditar] = useState<TrabajoExpediente | null>(
+    null,
+  );
+  const [trabajoActivo, setTrabajoActivo] = useState<TrabajoExpediente | null>(
+    null,
+  );
+
+  // ── Permisos ──────────────────────────────────────────────────────────────
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // ── Verificar rol del usuario autenticado ─────────────────────────────────
+  useEffect(() => {
+    const checkRol = async () => {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: perfil } = await supabase
+        .from("usuarios")
+        .select("rol")
+        .eq("id", user.id)
+        .maybeSingle();
+      setIsAdmin(perfil?.rol === "admin");
+    };
+    checkRol();
+  }, []);
 
   // ── Cargar expedientes desde Supabase ─────────────────────────────────────
   const loadTrabajos = useCallback(async () => {
@@ -65,12 +88,10 @@ export default function FormatosPage() {
       let q = supabase
         .from("trabajos")
         .select(
-          `
-          *,
+          `*,
           creador:creado_por(nombre_completo),
           departamento:departamento_id(nombre),
-          registros_formato(id, tipo, completado, imagen_url)
-        `,
+          registros_formato(id, tipo, completado, imagen_url)`,
           { count: "exact" },
         )
         .order("fecha_apertura", { ascending: false })
@@ -80,7 +101,8 @@ export default function FormatosPage() {
 
       const { data, error, count } = await q;
       if (error) throw error;
-      setTrabajos(data ?? []);
+
+      setTrabajos((data as unknown as TrabajoExpediente[]) ?? []);
       setTotalCount(count ?? 0);
     } catch (err) {
       console.error("Error cargando expedientes:", err);
@@ -93,24 +115,26 @@ export default function FormatosPage() {
     loadTrabajos();
   }, [loadTrabajos]);
 
-  // ── Filtro local por texto (folio, título, área, creador) ─────────────────
+  // ── Filtro local por texto ────────────────────────────────────────────────
+  // Se aplica sobre los datos ya cargados para no re-lanzar la query
   const filtered = trabajos.filter((t) => {
-    const term = search.toLowerCase();
+    const term = search.toLowerCase().trim();
     return (
       !term ||
       t.folio?.toLowerCase().includes(term) ||
       t.titulo?.toLowerCase().includes(term) ||
       t.area_solicitante?.toLowerCase().includes(term) ||
-      t.creador?.nombre_completo?.toLowerCase().includes(term)
+      t.creador?.nombre_completo?.toLowerCase().includes(term) ||
+      t.maquina?.toLowerCase().includes(term)
     );
   });
 
-  // ── Cálculos de paginación ────────────────────────────────────────────────
+  // ── Paginación ────────────────────────────────────────────────────────────
   const rangoDesde = totalCount === 0 ? 0 : (page - 1) * PER_PAGE + 1;
   const rangoHasta = Math.min(page * PER_PAGE, totalCount);
   const totalPaginas = Math.ceil(totalCount / PER_PAGE);
 
-  /** Formato de fecha corto para la columna de fecha */
+  /** Fecha corta para la columna de la tabla */
   const fmtFecha = (f: string) =>
     new Date(f).toLocaleDateString("es-MX", {
       day: "2-digit",
@@ -119,21 +143,54 @@ export default function FormatosPage() {
     });
 
   /**
-   * Calcula el progreso de formularios de un expediente.
-   * @returns { total, completos } para la barra y el contador.
+   * Calcula completos/total/% para la barra de progreso de formularios.
+   * Se recibe el array registros_formato de cada expediente.
    */
-  const progreso = (registros: any[]) => ({
-    total: registros?.length ?? 0,
-    completos: registros?.filter((r) => r.completado).length ?? 0,
-  });
+  const calcularProgreso = (
+    registros: TrabajoExpediente["registros_formato"],
+  ) => {
+    const total = registros?.length ?? 0;
+    const completos = registros?.filter((r) => r.completado).length ?? 0;
+    return {
+      total,
+      completos,
+      pct: total > 0 ? Math.round((completos / total) * 100) : 0,
+    };
+  };
 
+  /** Abre el modal en modo edición con los datos del trabajo seleccionado */
+  const handleEditar = (t: TrabajoExpediente) => {
+    setTrabajoEditar(t);
+    setModalNuevo(true);
+  };
+
+  /** Elimina el expediente tras confirmación; solo visible para admin */
+  const handleEliminar = async (t: TrabajoExpediente) => {
+    if (
+      !confirm(
+        `¿Eliminar el expediente "${t.folio ?? "#" + t.id}" permanentemente?`,
+      )
+    )
+      return;
+    const supabase = createClient();
+    const { error } = await supabase.from("trabajos").delete().eq("id", t.id);
+    if (error) {
+      alert("Error al eliminar: " + error.message);
+      return;
+    }
+    loadTrabajos();
+  };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
 
       <main className="flex-1 lg:ml-64 w-full">
         <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
-          {/* ── Encabezado de la página ── */}
+          {/* ── Encabezado ──────────────────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -145,7 +202,10 @@ export default function FormatosPage() {
               </p>
             </div>
             <button
-              onClick={() => setModalNuevo(true)}
+              onClick={() => {
+                setTrabajoEditar(null);
+                setModalNuevo(true);
+              }}
               className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700
                          text-white px-5 py-2.5 rounded-xl font-semibold
                          shadow-lg shadow-blue-200 transition-all hover:-translate-y-0.5
@@ -155,11 +215,8 @@ export default function FormatosPage() {
             </button>
           </div>
 
-          {/* ── Filtros: búsqueda de texto + selector de estado ── */}
-          <div
-            className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6
-                          flex flex-col sm:flex-row gap-3"
-          >
+          {/* ── Filtros: búsqueda + selector de estado ───────────────────── */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search
                 size={16}
@@ -168,16 +225,16 @@ export default function FormatosPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por folio, título, área o técnico..."
+                placeholder="Buscar por folio, título, máquina, área o técnico..."
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200
-                           rounded-xl text-sm outline-none
-                           focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                           rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100
+                           focus:border-blue-400"
               />
             </div>
             <select
               value={estadoFilter}
               onChange={(e) => {
-                setEstadoFilter(e.target.value as any);
+                setEstadoFilter(e.target.value as EstadoTrabajo | "");
                 setPage(1);
               }}
               className="py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl
@@ -192,7 +249,7 @@ export default function FormatosPage() {
             </select>
           </div>
 
-          {/* ── Tabla de expedientes ── */}
+          {/* ── Tabla principal ──────────────────────────────────────────── */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -202,11 +259,11 @@ export default function FormatosPage() {
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                       Folio
                     </th>
-                    {/* Trabajo (título + área) — siempre visible */}
+                    {/* Trabajo (título + máquina + área) — siempre visible */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                       Trabajo
                     </th>
-                    {/* Formularios (progreso) — desde md */}
+                    {/* Formularios con barra de progreso — desde md */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden md:table-cell">
                       Formularios
                     </th>
@@ -214,7 +271,7 @@ export default function FormatosPage() {
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">
                       Creado por
                     </th>
-                    {/* Fecha — desde lg */}
+                    {/* Fecha de apertura — desde lg */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">
                       Fecha
                     </th>
@@ -222,14 +279,14 @@ export default function FormatosPage() {
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">
                       Estado
                     </th>
-                    {/* Acciones */}
-                    <th className="px-3 sm:px-4 py-4 w-12" />
+                    {/* Acciones — columna fija */}
+                    <th className="px-3 sm:px-4 py-4 w-28" />
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-50">
+                  {/* Esqueleto de carga */}
                   {isLoading ? (
-                    // Esqueleto de carga
                     [...Array(5)].map((_, i) => (
                       <tr key={i}>
                         <td colSpan={7} className="px-6 py-4">
@@ -248,13 +305,11 @@ export default function FormatosPage() {
                     </tr>
                   ) : (
                     filtered.map((t) => {
-                      const est = ESTADO_CONFIG[t.estado as EstadoTrabajo];
+                      const est = ESTADO_CONFIG[t.estado];
                       const EstIcon = est?.Icon;
-                      const { total, completos } = progreso(
+                      const { total, completos, pct } = calcularProgreso(
                         t.registros_formato,
                       );
-                      const pct =
-                        total > 0 ? Math.round((completos / total) * 100) : 0;
 
                       return (
                         <tr
@@ -263,28 +318,31 @@ export default function FormatosPage() {
                         >
                           {/* ── Folio ── */}
                           <td className="px-4 sm:px-6 py-4">
-                            <span
-                              className="font-mono text-xs font-black text-blue-600
-                                           bg-blue-50 px-2 sm:px-2.5 py-1 rounded-lg whitespace-nowrap"
-                            >
-                              {t.folio ?? `#${t.id}`}
+                            <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-2 sm:px-2.5 py-1 rounded-lg whitespace-nowrap">
+                              {/* FIX: t.id es number, String() evita el error de .substring */}
+                              {t.folio ?? `#${String(t.id).substring(0, 6)}`}
                             </span>
                           </td>
 
-                          {/* ── Título y área solicitante ── */}
-                          <td className="px-4 sm:px-6 py-4 max-w-[160px] sm:max-w-[200px]">
+                          {/* ── Título, máquina y área ── */}
+                          <td className="px-4 sm:px-6 py-4 max-w-[180px] sm:max-w-[220px]">
                             <p className="text-sm font-bold text-slate-800 truncate">
                               {t.titulo}
                             </p>
+                            {t.maquina && (
+                              <p className="text-[11px] text-blue-600 font-mono truncate">
+                                {t.maquina}
+                              </p>
+                            )}
                             <p className="text-[11px] text-slate-400 font-medium truncate">
-                              {t.area_solicitante}
+                              {t.area_solicitante || "Sin área"}
                             </p>
-                            {/* En mobile muestra el progreso aquí */}
-                            <div className="flex items-center gap-1.5 mt-1 md:hidden">
+                            {/* Barra de progreso solo en mobile (columna Formularios oculta en sm) */}
+                            <div className="flex items-center gap-1.5 mt-1.5 md:hidden">
                               <span className="text-[10px] font-bold text-slate-400">
                                 {completos}/{total}
                               </span>
-                              <div className="w-12 bg-slate-100 rounded-full h-1 overflow-hidden">
+                              <div className="w-14 bg-slate-100 rounded-full h-1 overflow-hidden">
                                 <div
                                   className={`h-full rounded-full ${pct === 100 ? "bg-emerald-500" : "bg-blue-500"}`}
                                   style={{ width: `${pct}%` }}
@@ -293,22 +351,21 @@ export default function FormatosPage() {
                             </div>
                           </td>
 
-                          {/* ── Progreso de formularios ── */}
+                          {/* ── Progreso de formularios (desktop) ── */}
                           <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
                             <div className="flex items-center gap-2">
-                              {/* Ícono de cada formulario (apilados) */}
+                              {/* Íconos apilados: uno por formulario, verde si completado */}
                               <div className="flex -space-x-1">
-                                {(t.registros_formato ?? []).map((r: any) => {
-                                  const cfg =
-                                    FORMATO_CONFIG[r.tipo as TipoFormato];
+                                {(t.registros_formato ?? []).map((r) => {
+                                  const cfg = FORMATO_CONFIG[r.tipo];
                                   const FIcon = cfg?.Icon;
                                   return FIcon ? (
                                     <div
                                       key={r.id}
                                       title={`${cfg.label}${r.completado ? " ✓" : " (pendiente)"}`}
                                       className={`w-6 h-6 rounded-full border-2 border-white
-                                                flex items-center justify-center
-                                                ${r.completado ? "bg-emerald-100" : "bg-slate-100"}`}
+                                                  flex items-center justify-center
+                                                  ${r.completado ? "bg-emerald-100" : "bg-slate-100"}`}
                                     >
                                       <FIcon
                                         size={10}
@@ -322,24 +379,25 @@ export default function FormatosPage() {
                                   ) : null;
                                 })}
                               </div>
-                              {/* Contador y barra */}
                               <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">
                                 {completos}/{total}
                               </span>
                               <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-all
-                                            ${pct === 100 ? "bg-emerald-500" : "bg-blue-500"}`}
+                                  className={`h-full rounded-full transition-all ${pct === 100 ? "bg-emerald-500" : "bg-blue-500"}`}
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
-                              {/* Ícono de imagen si algún formulario tiene foto adjunta */}
+                              {/* Ícono de cámara si algún formulario tiene foto adjunta */}
                               {(t.registros_formato ?? []).some(
-                                (r: any) => r.imagen_url,
+                                (r) => r.imagen_url,
                               ) && (
-                                <Camera size={12} className="text-blue-400">
-                                  <title>Tiene imágenes adjuntas</title>
-                                </Camera>
+                                <span
+                                  title="Tiene fotos adjuntas"
+                                  className="flex-shrink-0"
+                                >
+                                  <Camera size={12} className="text-blue-400" />
+                                </span>
                               )}
                             </div>
                           </td>
@@ -354,13 +412,13 @@ export default function FormatosPage() {
                             {fmtFecha(t.fecha_apertura)}
                           </td>
 
-                          {/* ── Estado del expediente ── */}
+                          {/* ── Badge de estado ── */}
                           <td className="px-4 sm:px-6 py-4 text-center">
-                            {est && (
+                            {est && EstIcon && (
                               <span
                                 className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1
-                                             rounded-xl text-[10px] font-bold border whitespace-nowrap
-                                             ${est.cls}`}
+                                               rounded-xl text-[10px] font-bold border whitespace-nowrap
+                                               ${est.cls}`}
                               >
                                 <EstIcon size={10} />
                                 <span className="hidden sm:inline">
@@ -370,17 +428,38 @@ export default function FormatosPage() {
                             )}
                           </td>
 
-                          {/* ── Acción: ver expediente ── */}
+                          {/* ── Botones de acción ── */}
                           <td className="px-3 sm:px-4 py-4">
-                            <button
-                              onClick={() => setTrabajoActivo(t)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-blue-600
-                                       hover:bg-blue-50 transition-all
-                                       opacity-0 group-hover:opacity-100"
-                              title="Ver y llenar expediente"
-                            >
-                              <Eye size={15} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {/* Ver y llenar formularios */}
+                              <button
+                                onClick={() => setTrabajoActivo(t)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                title="Ver y llenar expediente"
+                              >
+                                <Eye size={15} />
+                              </button>
+
+                              {/* Editar datos del expediente */}
+                              <button
+                                onClick={() => handleEditar(t)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                                title="Editar expediente"
+                              >
+                                <Pencil size={15} />
+                              </button>
+
+                              {/* Eliminar — solo admin */}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleEliminar(t)}
+                                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                                  title="Eliminar expediente permanentemente"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -390,11 +469,8 @@ export default function FormatosPage() {
               </table>
             </div>
 
-            {/* ── Paginación "1–20 de 45" ── */}
-            <div
-              className="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100
-                            flex items-center justify-between"
-            >
+            {/* ── Paginación ──────────────────────────────────────────────── */}
+            <div className="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
               <p className="text-sm font-medium text-slate-500">
                 {isLoading ? (
                   "Cargando..."
@@ -438,23 +514,29 @@ export default function FormatosPage() {
         </div>
       </main>
 
-      {/* ── Modal: crear nuevo expediente ── */}
+      {/* ── Modal: crear o editar expediente ──────────────────────────────── */}
       {modalNuevo && (
         <ModalNuevoTrabajo
-          onClose={() => setModalNuevo(false)}
+          trabajo={trabajoEditar} // null = nuevo, objeto = editar
+          onClose={() => {
+            setModalNuevo(false);
+            setTrabajoEditar(null);
+          }}
           onSaved={() => {
             loadTrabajos();
             setModalNuevo(false);
+            setTrabajoEditar(null);
           }}
         />
       )}
 
-      {/* ── Panel lateral: ver y llenar expediente ── */}
+      {/* ── Panel lateral: ver y llenar formularios del expediente ─────────── */}
       {trabajoActivo && (
         <PanelExpediente
           trabajo={trabajoActivo}
           onClose={() => setTrabajoActivo(null)}
           onUpdated={loadTrabajos}
+          onEdit={handleEditar} // permite editar desde el panel
         />
       )}
     </div>

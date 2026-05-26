@@ -1,14 +1,14 @@
 /**
  * @file app/formatos/page.tsx
  * @description Módulo de Formatos de Trabajo.
- *   Tabla principal paginada con filtros, búsqueda de texto,
- *   acciones CRUD y acceso al panel de llenado de formularios.
+ * Tabla principal paginada con filtros, búsqueda de texto,
+ * acciones CRUD y acceso al panel de llenado de formularios.
  *
- * CORRECCIONES aplicadas vs. el borrador original:
- *   1. t.id es number (BIGSERIAL) → se usa String(t.id) en lugar de t.id.substring()
- *   2. ModalNuevoTrabajo recibe prop `trabajo` para modo edición
- *   3. PanelExpediente recibe prop `onEdit` para disparar el modal desde el panel
- *   4. Importación de TipoFormato removida (no se usa directamente en este archivo)
+ * CORRECCIONES:
+ * - Aplicación de color institucional (#004091).
+ * - Animaciones formales (fade-in, slide-in) y transiciones en interacciones.
+ * - Revisión ortográfica y mejora de responsividad.
+ * - Lógica de componentes, estados y consultas a Supabase intacta.
  */
 
 "use client";
@@ -116,7 +116,6 @@ export default function FormatosPage() {
   }, [loadTrabajos]);
 
   // ── Filtro local por texto ────────────────────────────────────────────────
-  // Se aplica sobre los datos ya cargados para no re-lanzar la query
   const filtered = trabajos.filter((t) => {
     const term = search.toLowerCase().trim();
     return (
@@ -189,7 +188,7 @@ export default function FormatosPage() {
       <Sidebar />
 
       <main className="flex-1 lg:ml-64 w-full">
-        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-7xl mx-auto animate-in fade-in duration-700">
           {/* ── Encabezado ──────────────────────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
             <div>
@@ -197,8 +196,7 @@ export default function FormatosPage() {
                 Formatos de Trabajo
               </h1>
               <p className="text-slate-500 font-medium mt-1 text-sm">
-                Expedientes de mantenimiento con formularios físicos
-                digitalizados
+                Expedientes de mantenimiento con formularios físicos digitalizados
               </p>
             </div>
             <button
@@ -206,16 +204,17 @@ export default function FormatosPage() {
                 setTrabajoEditar(null);
                 setModalNuevo(true);
               }}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700
+              className="inline-flex items-center justify-center gap-2 bg-[#004091] hover:bg-[#002f6c]
                          text-white px-5 py-2.5 rounded-xl font-semibold
-                         shadow-lg shadow-blue-200 transition-all hover:-translate-y-0.5
+                         shadow-lg shadow-[#004091]/20 transition-all duration-300 hover:-translate-y-0.5
                          self-start sm:self-auto"
             >
               <Plus size={18} /> Abrir Expediente
             </button>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row gap-3">
+          {/* ── Filtros ─────────────────────────────────────────────────────── */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row gap-3 transition-all duration-300 hover:shadow-md">
             <div className="relative flex-1">
               <Search
                 size={16}
@@ -226,8 +225,8 @@ export default function FormatosPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar por folio, título, máquina, área o técnico..."
                 className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200
-                           rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-100
-                           focus:border-blue-400"
+                           rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#004091]/20
+                           focus:border-[#004091]/50 transition-all duration-300"
               />
             </div>
             <select
@@ -237,7 +236,8 @@ export default function FormatosPage() {
                 setPage(1);
               }}
               className="py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl
-                         text-sm text-slate-600 font-medium outline-none cursor-pointer"
+                         text-sm text-slate-600 font-medium outline-none cursor-pointer
+                         focus:ring-2 focus:ring-[#004091]/20 focus:border-[#004091]/50 transition-all duration-300"
             >
               <option value="">Todos los estados</option>
               {Object.entries(ESTADO_CONFIG).map(([k, v]) => (
@@ -249,52 +249,44 @@ export default function FormatosPage() {
           </div>
 
           {/* ── Tabla principal ──────────────────────────────────────────── */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden transition-all duration-500">
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-100">
-                    {/* Folio — siempre visible */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                       Folio
                     </th>
-                    {/* Trabajo (título + máquina + área) — siempre visible */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                       Trabajo
                     </th>
-                    {/* Formularios con barra de progreso — desde md */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden md:table-cell">
                       Formularios
                     </th>
-                    {/* Creado por — desde lg */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">
                       Creado por
                     </th>
-                    {/* Fecha de apertura — desde lg */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest hidden lg:table-cell">
                       Fecha
                     </th>
-                    {/* Estado — siempre visible */}
                     <th className="px-4 sm:px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">
                       Estado
                     </th>
-                    {/* Acciones — columna fija */}
                     <th className="px-3 sm:px-4 py-4 w-28" />
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-50">
-                  {/* Esqueleto de carga */}
                   {isLoading ? (
                     [...Array(5)].map((_, i) => (
-                      <tr key={i}>
+                      <tr key={i} className="animate-in fade-in duration-500">
                         <td colSpan={7} className="px-6 py-4">
                           <div className="h-6 bg-slate-100 rounded-lg animate-pulse" />
                         </td>
                       </tr>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr>
+                    <tr className="animate-in fade-in duration-500">
                       <td
                         colSpan={7}
                         className="py-16 text-center text-slate-400 text-sm font-medium"
@@ -303,7 +295,7 @@ export default function FormatosPage() {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((t) => {
+                    filtered.map((t, index) => {
                       const est = ESTADO_CONFIG[t.estado];
                       const EstIcon = est?.Icon;
                       const { total, completos, pct } = calcularProgreso(
@@ -313,37 +305,37 @@ export default function FormatosPage() {
                       return (
                         <tr
                           key={t.id}
-                          className="hover:bg-blue-50/30 transition-colors group"
+                          className="hover:bg-[#004091]/5 transition-colors duration-300 group animate-in fade-in slide-in-from-bottom-2"
+                          style={{ animationFillMode: "both", animationDelay: `${index * 50}ms` }}
                         >
                           {/* ── Folio ── */}
                           <td className="px-4 sm:px-6 py-4">
-                            <span className="font-mono text-xs font-black text-blue-600 bg-blue-50 px-2 sm:px-2.5 py-1 rounded-lg whitespace-nowrap">
-                              {/* FIX: t.id es number, String() evita el error de .substring */}
+                            <span className="font-mono text-xs font-black text-[#004091] bg-[#004091]/10 px-2 sm:px-2.5 py-1 rounded-lg whitespace-nowrap transition-colors duration-300">
                               {t.folio ?? `#${String(t.id).substring(0, 6)}`}
                             </span>
                           </td>
 
                           {/* ── Título, máquina y área ── */}
                           <td className="px-4 sm:px-6 py-4 max-w-[180px] sm:max-w-[220px]">
-                            <p className="text-sm font-bold text-slate-800 truncate">
+                            <p className="text-sm font-bold text-slate-800 truncate transition-colors duration-300 group-hover:text-[#004091]">
                               {t.titulo}
                             </p>
                             {t.maquina && (
-                              <p className="text-[11px] text-blue-600 font-mono truncate">
+                              <p className="text-[11px] text-[#004091]/80 font-mono truncate">
                                 {t.maquina}
                               </p>
                             )}
                             <p className="text-[11px] text-slate-400 font-medium truncate">
                               {t.area_solicitante || "Sin área"}
                             </p>
-                            {/* Barra de progreso solo en mobile (columna Formularios oculta en sm) */}
+                            {/* Barra de progreso en mobile */}
                             <div className="flex items-center gap-1.5 mt-1.5 md:hidden">
                               <span className="text-[10px] font-bold text-slate-400">
                                 {completos}/{total}
                               </span>
                               <div className="w-14 bg-slate-100 rounded-full h-1 overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${pct === 100 ? "bg-emerald-500" : "bg-blue-500"}`}
+                                  className={`h-full rounded-full transition-all duration-500 ease-out ${pct === 100 ? "bg-emerald-500" : "bg-[#004091]"}`}
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
@@ -353,7 +345,6 @@ export default function FormatosPage() {
                           {/* ── Progreso de formularios (desktop) ── */}
                           <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
                             <div className="flex items-center gap-2">
-                              {/* Íconos apilados: uno por formulario, verde si completado */}
                               <div className="flex -space-x-1">
                                 {(t.registros_formato ?? []).map((r) => {
                                   const cfg = FORMATO_CONFIG[r.tipo];
@@ -363,15 +354,15 @@ export default function FormatosPage() {
                                       key={r.id}
                                       title={`${cfg.label}${r.completado ? " ✓" : " (pendiente)"}`}
                                       className={`w-6 h-6 rounded-full border-2 border-white
-                                                  flex items-center justify-center
-                                                  ${r.completado ? "bg-emerald-100" : "bg-slate-100"}`}
+                                                  flex items-center justify-center transition-colors duration-300
+                                                  ${r.completado ? "bg-emerald-100" : "bg-slate-100 group-hover:bg-[#004091]/10"}`}
                                     >
                                       <FIcon
                                         size={10}
                                         className={
                                           r.completado
                                             ? "text-emerald-600"
-                                            : "text-slate-400"
+                                            : "text-slate-400 group-hover:text-[#004091]/60"
                                         }
                                       />
                                     </div>
@@ -383,11 +374,10 @@ export default function FormatosPage() {
                               </span>
                               <div className="w-16 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full transition-all ${pct === 100 ? "bg-emerald-500" : "bg-blue-500"}`}
+                                  className={`h-full rounded-full transition-all duration-500 ease-out ${pct === 100 ? "bg-emerald-500" : "bg-[#004091]"}`}
                                   style={{ width: `${pct}%` }}
                                 />
                               </div>
-                              {/* Ícono de cámara si algún formulario tiene foto adjunta */}
                               {(t.registros_formato ?? []).some(
                                 (r) => r.imagen_url,
                               ) && (
@@ -395,7 +385,7 @@ export default function FormatosPage() {
                                   title="Tiene fotos adjuntas"
                                   className="flex-shrink-0"
                                 >
-                                  <Camera size={12} className="text-blue-400" />
+                                  <Camera size={12} className="text-[#004091]/60" />
                                 </span>
                               )}
                             </div>
@@ -417,7 +407,7 @@ export default function FormatosPage() {
                               <span
                                 className={`inline-flex items-center gap-1 px-2 sm:px-2.5 py-1
                                                rounded-xl text-[10px] font-bold border whitespace-nowrap
-                                               ${est.cls}`}
+                                               transition-all duration-300 ${est.cls}`}
                               >
                                 <EstIcon size={10} />
                                 <span className="hidden sm:inline">
@@ -429,11 +419,11 @@ export default function FormatosPage() {
 
                           {/* ── Botones de acción ── */}
                           <td className="px-3 sm:px-4 py-4">
-                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-2 group-hover:translate-x-0">
                               {/* Ver y llenar formularios */}
                               <button
                                 onClick={() => setTrabajoActivo(t)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                className="p-2 rounded-lg text-slate-400 hover:text-[#004091] hover:bg-[#004091]/10 transition-all duration-300"
                                 title="Ver y llenar expediente"
                               >
                                 <Eye size={15} />
@@ -442,7 +432,7 @@ export default function FormatosPage() {
                               {/* Editar datos del expediente */}
                               <button
                                 onClick={() => handleEditar(t)}
-                                className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all"
+                                className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all duration-300"
                                 title="Editar expediente"
                               >
                                 <Pencil size={15} />
@@ -452,7 +442,7 @@ export default function FormatosPage() {
                               {isAdmin && (
                                 <button
                                   onClick={() => handleEliminar(t)}
-                                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                                  className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all duration-300"
                                   title="Eliminar expediente permanentemente"
                                 >
                                   <Trash2 size={15} />
@@ -469,7 +459,7 @@ export default function FormatosPage() {
             </div>
 
             {/* ── Paginación ──────────────────────────────────────────────── */}
-            <div className="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between transition-colors duration-300">
               <p className="text-sm font-medium text-slate-500">
                 {isLoading ? (
                   "Cargando..."
@@ -492,7 +482,9 @@ export default function FormatosPage() {
                   disabled={page === 1 || isLoading}
                   onClick={() => setPage((p) => p - 1)}
                   className="p-2 rounded-xl text-slate-500 bg-white border border-slate-200
-                             hover:bg-slate-50 disabled:opacity-40 transition-all"
+                             hover:bg-[#004091]/5 hover:text-[#004091] hover:border-[#004091]/20 
+                             disabled:opacity-40 disabled:hover:bg-white disabled:hover:border-slate-200 disabled:hover:text-slate-500
+                             transition-all duration-300"
                 >
                   <ChevronLeft size={16} />
                 </button>
@@ -503,7 +495,9 @@ export default function FormatosPage() {
                   disabled={page >= totalPaginas || isLoading}
                   onClick={() => setPage((p) => p + 1)}
                   className="p-2 rounded-xl text-slate-500 bg-white border border-slate-200
-                             hover:bg-slate-50 disabled:opacity-40 transition-all"
+                             hover:bg-[#004091]/5 hover:text-[#004091] hover:border-[#004091]/20 
+                             disabled:opacity-40 disabled:hover:bg-white disabled:hover:border-slate-200 disabled:hover:text-slate-500
+                             transition-all duration-300"
                 >
                   <ChevronRight size={16} />
                 </button>
@@ -516,7 +510,7 @@ export default function FormatosPage() {
       {/* ── Modal: crear o editar expediente ──────────────────────────────── */}
       {modalNuevo && (
         <ModalNuevoTrabajo
-          trabajo={trabajoEditar} // null = nuevo, objeto = editar
+          trabajo={trabajoEditar}
           onClose={() => {
             setModalNuevo(false);
             setTrabajoEditar(null);
@@ -535,7 +529,7 @@ export default function FormatosPage() {
           trabajo={trabajoActivo}
           onClose={() => setTrabajoActivo(null)}
           onUpdated={loadTrabajos}
-          onEdit={handleEditar} // permite editar desde el panel
+          onEdit={handleEditar}
         />
       )}
     </div>

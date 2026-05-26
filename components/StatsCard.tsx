@@ -5,18 +5,22 @@ interface StatsCardProps {
   title: string;
   value: string | number;
   icon: React.ReactNode;
-  iconColor?: "blue" | "green" | "amber" | "red" | "purple";
+  /* Añadimos "emerald" y tu color hexadecimal exacto a las opciones permitidas */
+  iconColor?: "blue" | "green" | "amber" | "red" | "purple" | "emerald" | "#004091";
   subtitle?: string;
   trend?: number;
   isLoading?: boolean;
 }
 
 const colorMap = {
-  blue:   "bg-blue-50 text-blue-600 border-blue-100",
-  green:  "bg-emerald-50 text-emerald-600 border-emerald-100",
-  amber:  "bg-amber-50 text-amber-600 border-amber-100",
-  red:    "bg-red-50 text-red-600 border-red-100",
-  purple: "bg-purple-50 text-purple-600 border-purple-100",
+  blue:      "bg-blue-50 text-blue-600 border-blue-100",
+  green:     "bg-emerald-50 text-emerald-600 border-emerald-100", // Mantenemos compatibilidad si ya usabas green
+  emerald:   "bg-emerald-50 text-emerald-600 border-emerald-100", // Añadido "emerald"
+  amber:     "bg-amber-50 text-amber-600 border-amber-100",
+  red:       "bg-red-50 text-red-600 border-red-100",
+  purple:    "bg-purple-50 text-purple-600 border-purple-100",
+  /* Añadimos tu azul personalizado usando clases arbitrarias de Tailwind */
+  "#004091": "bg-[#004091]/10 text-[#004091] border-[#004091]/20", 
 };
 
 export default function StatsCard({

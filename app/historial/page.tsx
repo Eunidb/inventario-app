@@ -455,7 +455,7 @@ export default function HistorialPage() {
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Notas e Incidencias del Ajuste Manual</label>
                   <textarea
-                    value={editObservations}
+                    value={editObservaciones}
                     onChange={(e) => setEditObservaciones(e.target.value)}
                     rows={4}
                     placeholder="Escriba los motivos del ajuste o comentarios corporativos..."

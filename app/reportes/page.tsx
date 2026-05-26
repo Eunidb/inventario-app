@@ -18,7 +18,7 @@ import {
   ClipboardList,
   Filter,
 } from "lucide-react";
-
+import { type TipoFormato, type TrabajoExpediente } from "@/components/formatos/types";
 // ---------------------------------------------------------------------------
 // Tipos locales
 // ---------------------------------------------------------------------------
@@ -46,6 +46,110 @@ const fmtFecha = (f?: string) =>
     : "—";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// ---------------------------------------------------------------------------
+// Función: Imprimir Expediente Individual Detallado en PDF (Tonos Azules)
+// ---------------------------------------------------------------------------
+async function generarPDFExpediente(trabajo: TrabajoExpediente) {
+  const jsPDF = (await import("jspdf")).default;
+  const autoTable = (await import("jspdf-autotable")).default;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  // Encabezado principal (Azul Marino Corporativo)
+  doc.setFillColor(30, 58, 138); 
+  doc.rect(0, 0, 210, 25, "F");
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(255, 255, 255);
+  doc.text("LABORATORIOS PIER", 15, 11);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(`EXPEDIENTE TÉCNICO DE TRABAJO — FOLIO: ${trabajo.folio ?? `#${trabajo.id}`}`, 15, 18);
+
+  // Bloque Izquierdo: Información General
+  autoTable(doc, {
+    startY: 32,
+    margin: { left: 15, right: 15 },
+    head: [["DATOS GENERALES DEL EXPEDIENTE", ""]],
+    body: [
+      ["Título del Trabajo:", trabajo.titulo],
+      ["Tipo de Mantenimiento:", trabajo.tipo_trabajo ?? "—"],
+      ["Prioridad Asignada:", trabajo.prioridad ?? "—"],
+      ["Estado Actual:", trabajo.estado.toUpperCase().replace(/_/g, " ")],
+    ],
+    theme: "plain",
+    headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
+    bodyStyles: { fontSize: 9, textColor: [30, 41, 59] },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 45 } }, 
+  });
+
+  let campoY = (doc as any).lastAutoTable.finalY;
+
+  // Bloque Derecho: Origen y Logística
+  autoTable(doc, {
+    startY: campoY + 5,
+    margin: { left: 15, right: 15 },
+    head: [["CONTROL INTERNO Y LOGÍSTICA", ""]],
+    body: [
+      ["Área Solicitante:", trabajo.area_solicitante ?? "—"],
+      ["Máquina / Equipo:", trabajo.maquina ?? "—"],
+      ["Departamento:", trabajo.departamento?.nombre ?? "—"],
+      ["Creado Por:", trabajo.creador?.nombre_completo ?? "—"],
+      ["Fecha de Apertura:", fmtFecha(trabajo.fecha_apertura)],
+      ["Fecha de Cierre:", trabajo.fecha_cierre ? fmtFecha(trabajo.fecha_cierre) : "Abierto / En proceso"],
+    ],
+    theme: "plain",
+    headStyles: { fillColor: [28, 58, 108], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 9 },
+    bodyStyles: { fontSize: 9, textColor: [30, 41, 59] },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 45 } },
+  });
+
+  campoY = (doc as any).lastAutoTable.finalY;
+
+  // Observaciones
+  if (trabajo.observaciones) {
+    autoTable(doc, {
+      startY: campoY + 5,
+      margin: { left: 15, right: 15 },
+      head: [["OBSERVACIONES INICIALES"]],
+      body: [[trabajo.observaciones]],
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [71, 85, 105], textColor: [255, 255, 255] },
+    });
+    campoY = (doc as any).lastAutoTable.finalY;
+  }
+
+  // Tabla de Formularios Asociados
+  const filasFormatos = (trabajo.registros_formato || []).map((f, index) => [
+    index + 1,
+    cap(f.tipo.replace(/_/g, " ")),
+    f.fecha_llenado ? fmtFecha(f.fecha_llenado) : "—",
+    f.completado ? "COMPLETADO" : "PENDIENTE",
+  ]);
+
+  autoTable(doc, {
+    startY: campoY + 8,
+    margin: { left: 15, right: 15 },
+    head: [["#", "Formulario Vinculado", "Fecha de Llenado", "Estatus"]],
+    body: filasFormatos,
+    headStyles: { fillColor: [37, 99, 235], fontStyle: "bold", fontSize: 9, halign: "center" },
+    alternateRowStyles: { fillColor: [240, 244, 255] },
+    bodyStyles: { fontSize: 8.5, textColor: [30, 41, 59] },
+    columnStyles: { 0: { halign: "center", cellWidth: 10 }, 2: { halign: "center" }, 3: { halign: "center" } },
+  });
+
+  const paginas = doc.getNumberOfPages();
+  for (let i = 1; i <= paginas; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Documento de control interno Laboratorios Pier. Página ${i} de ${paginas}`, 105, 287, { align: "center" });
+  }
+
+  doc.save(`Expediente_${trabajo.folio ?? trabajo.id}.pdf`);
+}
+
 
 // ---------------------------------------------------------------------------
 // Función: generar PDF con jsPDF + autoTable (Estilo Azul Formal)
@@ -281,27 +385,34 @@ export default function ReportesPage() {
         (i) => i.estado === "activo" && Number(i.stock_disponible) <= Number(i.stock_minimo)
       );
 
-      // 3. Cargar Expedientes / Formatos con Filtros Combinados (Fechas + Tipo de Formulario)
+      // 3. Cargar Órdenes/Trabajos reales para el Expediente
       let qExp = supabase
-        .from("expedientes")
-        .select("*, usuarios(nombre_completo), departamentos(nombre)")
-        .order("created_at", { ascending: false });
+        .from("trabajos")
+        .select(`
+          *,
+          creador:creado_por(nombre_completo),
+          departamento:departamento_id(nombre),
+          registros_formato(*)
+        `)
+        .order("fecha_apertura", { ascending: false });
         
-      if (fechaDesde) qExp = qExp.gte("created_at", fechaDesde);
-      if (fechaHasta) qExp = qExp.lte("created_at", fechaHasta + "T23:59:59");
-      
-      // Aplicar filtro específico de formulario si no está en "todos"
-      if (formularioSeleccionado !== "todos") {
-        qExp = qExp.eq("tipo_formato", formularioSeleccionado);
-      }
+      if (fechaDesde) qExp = qExp.gte("fecha_apertura", fechaDesde);
+      if (fechaHasta) qExp = qExp.lte("fecha_apertura", fechaHasta + "T23:59:59");
       
       const { data: exp } = await qExp;
-      setDataExpedientes(exp ?? []);
+      let expFiltrados = (exp as unknown as TrabajoExpediente[]) ?? [];
 
-      // Obtener lista completa de tipos de formularios (sin filtros) para poblar el selector dinámicamente
-      const { data: todosLosExp } = await supabase.from("expedientes").select("tipo_formato");
-      if (todosLosExp) {
-        const unicos = Array.from(new Set(todosLosExp.map(e => e.tipo_formato).filter(Boolean)));
+      if (formularioSeleccionado !== "todos") {
+        expFiltrados = expFiltrados.filter(e => 
+          e.registros_formato?.some(r => r.tipo === formularioSeleccionado)
+        );
+      }
+      setDataExpedientes(expFiltrados);
+
+      // Obtener lista completa de tipos de formularios únicos de la DB
+      const { data: todosLosFormatos } = await supabase.from("registros_formato").select("tipo");
+      if (todosLosFormatos) {
+        const unicos = Array.from(new Set(todosLosFormatos.map(e => e.tipo).filter(Boolean)));
         setListaFormularios(unicos);
       }
 
@@ -311,7 +422,7 @@ export default function ReportesPage() {
         stockBajo: activosConStock.length,
         prestamosActivos: prestamosActivos ?? 0,
         dadosBaja: bajasCount ?? 0,
-        totalExpedientes: exp?.length ?? 0,
+        totalExpedientes: expFiltrados.length,
       });
 
       setDataInventario(inv ?? []);
@@ -399,15 +510,15 @@ export default function ReportesPage() {
       ]),
     }),
     expedientes: () => ({
-      cabeceras: ["No. Expediente", "Título / Formato", "Tipo Formato", "Departamento", "Responsable", "Fecha Creación", "Estado"],
+      cabeceras: ["Folio / ID", "Título de Trabajo", "Área Solicitante", "Máquina", "Responsable", "Apertura", "Estado"],
       filas: dataExpedientes.map((e) => [
-        e.numero_expediente ?? e.id,
+        e.folio ?? `#${e.id}`,
         e.titulo ?? "—",
-        cap(e.tipo_formato || "—").replace(/_/g, " "),
-        (e.departamentos as any)?.nombre ?? "—",
-        (e.usuarios as any)?.nombre_completo ?? "—",
-        fmtFecha(e.created_at),
-        cap(e.estado || "—"),
+        e.area_solicitante ?? "—",
+        e.maquina ?? "—",
+        e.creador?.nombre_completo ?? "—",
+        fmtFecha(e.fecha_apertura),
+        cap(e.estado || "—").replace(/_/g, " "),
       ]),
     }),
   };
@@ -466,7 +577,7 @@ export default function ReportesPage() {
           ? `Auditoría - ${txtFormato}: ${fmtFecha(fechaDesde)} al ${fmtFecha(fechaHasta)}`
           : `Reporte Global - ${txtFormato}`;
       },
-      fileName: () => `reporte_expedientes_${formularioSeleccionado}_${new Date().toISOString().split("T")[0]}`,
+      fileName: () => `reporte_expedientes_${formularioSeleccionado}`,
     },
   };
 
@@ -588,10 +699,10 @@ export default function ReportesPage() {
                     }}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 outline-none focus:ring-2 focus:ring-sky-100 focus:border-sky-400 cursor-pointer"
                   >
-                    <option value="todos">🗂️ Todos los Formularios / Expedientes</option>
+                    <option value="todos">Todos los Formularios / Expedientes</option>
                     {listaFormularios.map((form) => (
                       <option key={form} value={form}>
-                        📄 {cap(form.replace(/_/g, " "))}
+                        {cap(form.replace(/_/g, " "))}
                       </option>
                     ))}
                   </select>
@@ -670,7 +781,7 @@ export default function ReportesPage() {
                           {tipo === "prestamos" && "Listado pormenorizado del flujo de equipos o reactivos prestados hacia departamentos internos o agentes externos."}
                           {tipo === "expedientes" && (
                             formularioSeleccionado === "todos" 
-                              ? "Índice de auditoría global de expedientes médicos, solicitudes de trabajo, formatos y registros de laboratorio." 
+                              ? "Índice de auditoría global de expedientes técnicos, solicitudes de mantenimiento, formatos y órdenes de servicio." 
                               : `Filtrado activo exclusivo para el formato corporativo: "${cap(formularioSeleccionado).replace(/_/g, " ")}".`
                           )}
                         </p>

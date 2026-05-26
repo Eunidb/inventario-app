@@ -1,22 +1,3 @@
-/**
- * @file components/formatos/ModalNuevoTrabajo.tsx
- * @description Modal para crear O editar un expediente de trabajo.
- *
- * Modo NUEVO (trabajo = null):
- *   Inserta en `trabajos`. El trigger `tr_crear_formatos` genera los
- *   registros_formato según los flags marcados.
- *
- * Modo EDICIÓN (trabajo = TrabajoExpediente):
- *   Actualiza los campos del expediente existente.
- *   NO recrea los registros_formato (ya existen); solo modifica los flags
- *   si el trigger lo permite, o se omiten en el UPDATE.
- *
- * Props:
- *   trabajo  → null (nuevo) | TrabajoExpediente (editar)
- *   onClose  → cierra el modal sin guardar
- *   onSaved  → refresca la tabla tras guardar
- */
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -66,7 +47,6 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
       setDepartamentos(deptos ?? []);
       setCurrentUser(user?.id ?? null);
 
-      // Pre-rellena los campos si estamos editando
       if (trabajo) {
         setTitulo(trabajo.titulo);
         setArea(trabajo.area_solicitante ?? "");
@@ -75,7 +55,6 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
         setPrioridad(trabajo.prioridad ?? "Normal");
         setObservaciones(trabajo.observaciones ?? "");
         setDeptId(trabajo.departamento_id ? String(trabajo.departamento_id) : "");
-        // Refleja los flags actuales del expediente
         setReqCompra(trabajo.requiere_compra);
         setReqMaquinaria(trabajo.requiere_registro_maquinaria);
         setReqLab(trabajo.requiere_registro_lab);
@@ -102,17 +81,14 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
     let error;
 
     if (isEdit) {
-      // EDICIÓN: actualiza solo los campos editables; los flags no se modifican
-      // porque los registros_formato ya fueron creados por el trigger al abrir.
       ({ error } = await supabase
         .from("trabajos")
         .update(payload)
         .eq("id", trabajo!.id));
     } else {
-      // NUEVO: inserta con los flags; el trigger creará los registros_formato
       ({ error } = await supabase.from("trabajos").insert([{
         ...payload,
-        creado_por:                   currentUser,
+        creado_por:                  currentUser,
         requiere_compra:              reqCompra,
         requiere_registro_maquinaria: reqMaquinaria,
         requiere_registro_lab:        reqLab,
@@ -125,114 +101,122 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Overlay con blur */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 transition-opacity">
+      {/* Overlay con click-to-close */}
+      <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      {/* Contenedor Principal del Modal Centrado */}
+      <div className="relative flex flex-col w-full max-w-xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
+        
+        {/* Pestaña táctil superior (Solo Mobile) */}
+        <div className="flex justify-center py-2 sm:hidden bg-slate-50 border-b border-slate-100 flex-shrink-0">
+          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
+        </div>
 
-        {/* ── Cabecera ────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600 rounded-xl text-white">
+        {/* 1. Cabecera Fija */}
+        <div className="flex items-center justify-between px-5 py-4 sm:px-6 sm:py-5 border-b border-slate-100 bg-white z-10 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`p-2.5 rounded-xl text-white flex-shrink-0 shadow-sm ${isEdit ? "bg-amber-500" : "bg-blue-600"}`}>
               {isEdit ? <FolderEdit size={18} /> : <FolderOpen size={18} />}
             </div>
-            <div>
-              <h2 className="text-base font-black text-slate-800">
+            <div className="min-w-0">
+              <h2 className="text-base font-black text-slate-800 truncate">
                 {isEdit ? "Editar Expediente" : "Abrir Expediente"}
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
                 {isEdit
                   ? `Folio: ${trabajo?.folio ?? "#" + trabajo?.id}`
                   : "Se generarán los formularios automáticamente"}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-2 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* ── Cuerpo con scroll ────────────────────────────────────────────── */}
-        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+        {/* 2. Cuerpo con Scroll Independiente */}
+        <div className="overflow-y-auto overscroll-contain flex-1 p-5 sm:p-6 space-y-5 bg-slate-50/50 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
 
-          {/* Título — obligatorio */}
-          <Field label="Título del trabajo *">
-            <input
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              placeholder="Ej. Reparación de bomba dosificadora"
-              className={inputCls}
-            />
-          </Field>
-
-          {/* Área y departamento */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Área solicitante">
-              <input value={area} onChange={e => setArea(e.target.value)}
-                placeholder="Ej. Producción" className={inputCls} />
+          {/* Bloque: Información Principal */}
+          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
+            <Field label="Título del trabajo *">
+              <input
+                value={titulo}
+                onChange={e => setTitulo(e.target.value)}
+                placeholder="Ej. Reparación de bomba dosificadora"
+                className={inputCls}
+              />
             </Field>
-            <Field label="Departamento">
-              <select value={deptId} onChange={e => setDeptId(e.target.value)} className={inputCls}>
-                <option value="">Sin asignar</option>
-                {departamentos.map(d => (
-                  <option key={d.id} value={d.id}>{d.nombre}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
 
-          {/* Máquina (campo nuevo para búsqueda rápida en la tabla) */}
-          <Field label="Máquina / Equipo">
-            <input
-              value={maquina}
-              onChange={e => setMaquina(e.target.value)}
-              placeholder="Ej. Fermentador F-02, Compresor atlas"
-              className={inputCls}
-            />
-          </Field>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Área solicitante">
+                <input value={area} onChange={e => setArea(e.target.value)}
+                  placeholder="Ej. Producción" className={inputCls} />
+              </Field>
+              <Field label="Departamento">
+                <select value={deptId} onChange={e => setDeptId(e.target.value)} className={inputCls}>
+                  <option value="">Sin asignar</option>
+                  {departamentos.map(d => (
+                    <option key={d.id} value={d.id}>{d.nombre}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
 
-          {/* Tipo y prioridad */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Tipo de mantenimiento">
-              <select value={tipoTrabajo} onChange={e => setTipoTrabajo(e.target.value)} className={inputCls}>
-                <option>Correctivo</option>
-                <option>Preventivo</option>
-                <option>Instalación</option>
-                <option>Calibración</option>
-                <option>Eléctrico</option>
-              </select>
-            </Field>
-            <Field label="Prioridad">
-              <select value={prioridad} onChange={e => setPrioridad(e.target.value)} className={inputCls}>
-                <option>Alta</option>
-                <option>Normal</option>
-                <option>Baja</option>
-              </select>
+            <Field label="Máquina / Equipo">
+              <input
+                value={maquina}
+                onChange={e => setMaquina(e.target.value)}
+                placeholder="Ej. Fermentador F-02, Compresor atlas"
+                className={inputCls}
+              />
             </Field>
           </div>
 
-          {/* Observaciones iniciales */}
-          <Field label="Observaciones iniciales">
-            <textarea
-              value={observaciones}
-              onChange={e => setObservaciones(e.target.value)}
-              rows={3}
-              placeholder="Descripción breve del problema o trabajo a realizar..."
-              className={`${inputCls} resize-none`}
-            />
-          </Field>
+          {/* Bloque: Logística */}
+          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Tipo de mantenimiento">
+                <select value={tipoTrabajo} onChange={e => setTipoTrabajo(e.target.value)} className={inputCls}>
+                  <option>Correctivo</option>
+                  <option>Preventivo</option>
+                  <option>Instalación</option>
+                  <option>Calibración</option>
+                  <option>Eléctrico</option>
+                </select>
+              </Field>
+              <Field label="Prioridad">
+                <select value={prioridad} onChange={e => setPrioridad(e.target.value)} className={inputCls}>
+                  <option>Alta</option>
+                  <option>Normal</option>
+                  <option>Baja</option>
+                </select>
+              </Field>
+            </div>
 
-          {/* ── Formularios adicionales (solo en modo NUEVO) ──────────────
-              En modo edición se ocultan porque los registros_formato ya
-              existen y no deben regenerarse.
-          */}
+            <Field label="Observaciones iniciales">
+              <textarea
+                value={observaciones}
+                onChange={e => setObservaciones(e.target.value)}
+                rows={3}
+                placeholder="Descripción breve del problema o trabajo a realizar..."
+                className={`${inputCls} resize-none`}
+              />
+            </Field>
+          </div>
+
+          {/* Bloque: Flags de formularios adicionales */}
           {!isEdit && (
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-                Formularios adicionales
+            <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Formularios adicionales requeridos
               </p>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <FlagCheckbox
                   checked={reqCompra}
                   onChange={setReqCompra}
@@ -258,30 +242,32 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
                   color="rose"
                 />
               </div>
-              <p className="text-[10px] text-slate-400 mt-3 italic leading-relaxed">
-                * <strong>Solicitud de Trabajo</strong> y <strong>Reporte de Servicio</strong> se generan siempre.
+              <p className="text-[10px] text-slate-400 pt-2 italic leading-relaxed border-t border-slate-50">
+                * El <strong>Formato de Solicitud de Trabajo</strong> y el <strong>Reporte de Servicio</strong> se generan de manera obligatoria en cada alta.
               </p>
             </div>
           )}
         </div>
 
-        {/* ── Pie ─────────────────────────────────────────────────────────── */}
-        <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
+        {/* 3. Pie de Formulario Fijo */}
+        <div className="flex justify-end items-center gap-3 px-5 py-4 sm:px-6 border-t border-slate-100 bg-white flex-shrink-0 shadow-[0_-4px_12px_rgba(0,0,0,0.02)]">
           <button
+            type="button"
             onClick={onClose}
-            className="px-5 py-2.5 text-slate-500 font-bold text-sm hover:text-slate-700 transition-colors"
+            className="px-5 py-2.5 text-slate-500 hover:text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-50 transition-colors"
           >
             Cancelar
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={loading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white
-                       px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-blue-200
-                       disabled:opacity-60 transition-all"
+            className={`flex items-center gap-2 text-white px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all active:scale-[0.98] disabled:opacity-60 ${
+              isEdit ? "bg-amber-500 hover:bg-amber-600 shadow-amber-100" : "bg-blue-600 hover:bg-blue-700 shadow-blue-200"
+            }`}
           >
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-            {loading ? "Guardando..." : isEdit ? "Guardar Cambios" : "Abrir Expediente"}
+            <span>{loading ? "Guardando..." : isEdit ? "Guardar Cambios" : "Abrir Expediente"}</span>
           </button>
         </div>
       </div>
@@ -289,11 +275,11 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
   );
 }
 
-// ─── Componentes auxiliares ──────────────────────────────────────────────────
+// ─── Componentes auxiliares locales ──────────────────────────────────────────
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
+    <div className="w-full">
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
         {label}
       </label>
@@ -311,27 +297,27 @@ function FlagCheckbox({ checked, onChange, Icon, label, desc, color }: {
   color: string;
 }) {
   const colorMap: Record<string, string> = {
-    teal:   "bg-teal-50 text-teal-700 border-teal-100",
-    orange: "bg-orange-50 text-orange-700 border-orange-100",
-    rose:   "bg-rose-50 text-rose-700 border-rose-100",
+    teal:   "bg-teal-50/60 text-teal-700 border-teal-200/80",
+    orange: "bg-orange-50/60 text-orange-700 border-orange-200/80",
+    rose:   "bg-rose-50/60 text-rose-700 border-rose-200/80",
   };
   const iconMap: Record<string, string> = {
     teal: "text-teal-500", orange: "text-orange-500", rose: "text-rose-500",
   };
   return (
-    <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-      checked ? `${colorMap[color]} border` : "bg-slate-50 border-slate-200 hover:border-slate-300"
+    <label className={`flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all ${
+      checked ? `${colorMap[color]} shadow-sm` : "bg-slate-50/50 border-slate-200/80 hover:border-slate-300 hover:bg-white"
     }`}>
       <input
         type="checkbox"
         checked={checked}
         onChange={e => onChange(e.target.checked)}
-        className="mt-0.5 rounded accent-blue-600 w-4 h-4 flex-shrink-0"
+        className="mt-0.5 rounded accent-blue-600 w-4 h-4 flex-shrink-0 transition-transform active:scale-95"
       />
-      <Icon size={16} className={`mt-0.5 flex-shrink-0 ${checked ? iconMap[color] : "text-slate-400"}`} />
-      <div>
-        <p className={`text-sm font-bold ${checked ? "text-slate-800" : "text-slate-600"}`}>{label}</p>
-        <p className="text-[11px] text-slate-400 leading-relaxed">{desc}</p>
+      <Icon size={16} className={`mt-0.5 flex-shrink-0 transition-colors ${checked ? iconMap[color] : "text-slate-400"}`} />
+      <div className="min-w-0">
+        <p className={`text-xs font-bold transition-colors ${checked ? "text-slate-800" : "text-slate-600"}`}>{label}</p>
+        <p className="text-[11px] text-slate-400 leading-normal mt-0.5">{desc}</p>
       </div>
     </label>
   );

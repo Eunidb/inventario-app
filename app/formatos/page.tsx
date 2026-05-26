@@ -215,7 +215,6 @@ export default function FormatosPage() {
             </button>
           </div>
 
-          {/* ── Filtros: búsqueda + selector de estado ───────────────────── */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search

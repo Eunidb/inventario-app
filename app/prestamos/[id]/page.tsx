@@ -80,7 +80,7 @@ export default function DetallePrestamoPage() {
         <div className="max-w-4xl mx-auto space-y-6">
           
           {/* Fila superior de navegación */}
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center print:hidden">
             <button 
               onClick={() => router.back()}
               className="flex items-center gap-2 text-blue-900 hover:text-blue-700 font-bold text-sm transition-colors"
@@ -97,7 +97,7 @@ export default function DetallePrestamoPage() {
           </div>
 
           {/* Tarjeta de información principal */}
-          <div className="bg-white rounded-3xl shadow-xl border border-blue-50 p-6 md:p-10 space-y-8">
+          <div className="bg-white rounded-3xl shadow-xl border border-blue-50 p-6 md:p-10 space-y-8 print:shadow-none print:border-none">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-blue-50 pb-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 border border-blue-100">

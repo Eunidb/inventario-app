@@ -14,7 +14,7 @@ import type { EstadoPrestamoEnum } from "@/lib/supabase";
 import {
   RefreshCw, Plus, Search, Eye, CornerDownLeft,
   CheckCircle2, XCircle, AlertCircle, Trash2,
-  Package, ShieldCheck, CalendarClock, CalendarCheck, X, SlidersHorizontal,
+  Package, ShieldCheck, X, SlidersHorizontal,
   Info, ChevronLeft, ChevronRight
 } from "lucide-react";
 
@@ -33,19 +33,18 @@ const ESTADO_ICONS: Record<EstadoPrestamoEnum, React.ReactNode> = {
 };
 
 export default function PrestamosPage() {
-  const [prestamos, setPrestamos]           = useState<any[]>([]);
-  const [isLoading, setIsLoading]           = useState(true);
-  const [search, setSearch]                 = useState("");
-  const [estFilter, setEstFilter]           = useState<string>("");
-  const [page, setPage]                     = useState(1);
-  const [modalNuevo, setModalNuevo]         = useState(false);
+  const [prestamos, setPrestamos] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [estFilter, setEstFilter] = useState<string>("");
+  const [page, setPage] = useState(1);
+  const [modalNuevo, setModalNuevo] = useState(false);
   const [selectedPrestamo, setSelectedPrestamo] = useState<any | null>(null);
-  const [modalDevolucion, setModalDevolucion]   = useState(false);
+  const [modalDevolucion, setModalDevolucion] = useState(false);
   
-  // Control para el modal de confirmación de eliminación personalizado
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [prestamoToDelete, setPrestamoToDelete] = useState<any | null>(null);
-  const [isDeleting, setIsDeleting]         = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const PER_PAGE = 12;
   const [counts, setCounts] = useState({ todos: 0, activo: 0, atrasado: 0, devuelto: 0, cancelado: 0 });
@@ -110,8 +109,7 @@ export default function PrestamosPage() {
     const articulos   = (p.detalle_prestamo ?? [])
       .map((d: any) => d.inventario?.nombre?.toLowerCase() ?? "")
       .join(" ");
-    return solicitante.includes(term) || externo.includes(term) ||
-           depto.includes(term) || articulos.includes(term);
+    return solicitante.includes(term) || externo.includes(term) || depto.includes(term) || articulos.includes(term);
   });
 
   const formatFecha = (f?: string) => {
@@ -166,7 +164,7 @@ export default function PrestamosPage() {
             </button>
           </div>
 
-          {/* Bloque Unificado de Filtros */}
+          {/* Filtros */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
             <div className="relative w-full">
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -183,7 +181,7 @@ export default function PrestamosPage() {
               )}
             </div>
 
-            {/* Tabs de Filtrado Monocromático */}
+            {/* Tabs */}
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <div className="flex items-center text-slate-400 mr-1 flex-shrink-0 text-xs font-bold uppercase tracking-wider">
                 <SlidersHorizontal size={13} className="mr-1.5" />
@@ -221,7 +219,7 @@ export default function PrestamosPage() {
             </div>
           </div>
 
-          {/* Tabla */}
+          {/* Tabla de Datos */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -261,7 +259,7 @@ export default function PrestamosPage() {
                             <div key={d.id} className="flex items-center gap-2">
                               <Package size={12} className="text-blue-500 shrink-0" />
                               <span className="text-xs font-semibold text-slate-700 truncate">{d.inventario?.nombre ?? "—"}</span>
-                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1 py-0.2 rounded font-bold">×{d.amount ?? d.cantidad}</span>
+                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1 py-0.2 rounded font-bold">×{d.cantidad}</span>
                             </div>
                           ))}
                         </div>
@@ -329,7 +327,7 @@ export default function PrestamosPage() {
       <ModalPrestamo isOpen={modalNuevo} onClose={() => { setModalNuevo(false); setSelectedPrestamo(null); }} prestamo={selectedPrestamo} onSaved={loadPrestamos} />
       <ModalDevolucion isOpen={modalDevolucion} onClose={() => { setModalDevolucion(false); setSelectedPrestamo(null); }} prestamo={selectedPrestamo} onSaved={loadPrestamos} />
 
-      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN (EN TONOS AZUL) */}
+      {/* Modal de Borrado */}
       {showDeleteModal && prestamoToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-blue-950/40 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />

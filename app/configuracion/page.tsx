@@ -9,14 +9,14 @@ import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
 import {
   Settings, Tag, Building2, Users, Plus, Pencil, Trash2,
-  X, Loader2, Save, Shield, UserCheck
+  X, Loader2, Save, UserCheck
 } from "lucide-react";
 
 type Tab = "categorias" | "departamentos" | "usuarios";
 
 const ROL_CLS: Record<string, string> = {
   admin:   "bg-purple-50 text-purple-700 border-purple-100",
-  usuario: "bg-[#014ba0]/5 text-[#014ba0] border-[#014ba0]/10",
+  usuario: "bg-[#014ba0]/5 text-[#014ba0]/90 border-[#014ba0]/10",
   tecnico: "bg-teal-50 text-teal-700 border-teal-100",
 };
 
@@ -56,39 +56,41 @@ export default function ConfiguracionPage() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 overflow-x-hidden">
       <Sidebar />
-      <main className="flex-1 lg:ml-64 w-full">
-        <div className="p-4 md:p-8 lg:p-10 pt-20 lg:pt-10 max-w-5xl mx-auto">
+      <main className="flex-1 lg:ml-64 w-full min-w-0 overflow-x-hidden">
+        <div className="p-4 sm:p-6 md:p-8 lg:p-10 pt-24 lg:pt-10 max-w-5xl mx-auto w-full box-border">
 
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-              <Settings size={28} className="text-[#004091]" />
+          <div className="mb-6 md:mb-8">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5 sm:gap-3">
+              <Settings size={26} className="text-[#004091] shrink-0" />
               Configuración
             </h1>
-            <p className="text-slate-500 font-medium mt-1">Administra categorías, departamentos y usuarios del sistema</p>
+            <p className="text-slate-500 text-sm font-medium mt-1">Administra categorías, departamentos y usuarios del sistema</p>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2 mb-6 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
-            {TABS.map(({ id, label, Icon, count }) => (
-              <button key={id} onClick={() => setTab(id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === id ? "bg-[#014ba0] text-white shadow-md hover:bg-[#004091]" : "text-slate-500 hover:text-slate-700"}`}>
-                <Icon size={15} />
-                {label}
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${tab === id ? "bg-[#004091] text-white" : "bg-slate-100 text-slate-500"}`}>
-                  {count}
-                </span>
-              </button>
-            ))}
+          {/* Tabs - Con scroll horizontal sutil en móviles pequeños para evitar roturas */}
+          <div className="w-full overflow-x-auto no-scrollbar mb-6 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex gap-1.5 min-w-max sm:min-w-0">
+              {TABS.map(({ id, label, Icon, count }) => (
+                <button key={id} onClick={() => setTab(id)}
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${tab === id ? "bg-[#014ba0] text-white shadow-md hover:bg-[#004091]" : "text-slate-500 hover:text-slate-700"}`}>
+                  <Icon size={14} className="shrink-0" />
+                  <span>{label}</span>
+                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md shrink-0 ${tab === id ? "bg-[#004091] text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Panel */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+          <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xl overflow-hidden w-full">
             {/* Barra de acciones */}
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-              <p className="text-sm font-bold text-slate-600">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center gap-4">
+              <p className="text-xs sm:text-sm font-bold text-slate-600 truncate">
                 {tab === "categorias" ? "Categorías de inventario" :
                  tab === "departamentos" ? "Departamentos de la empresa" : "Usuarios del sistema"}
               </p>
@@ -98,32 +100,33 @@ export default function ConfiguracionPage() {
                   if (tab === "departamentos")  setModalDept({ open: true, item: null });
                   if (tab === "usuarios")       setModalUser({ open: true, item: null });
                 }}
-                className="flex items-center gap-1.5 bg-[#014ba0] hover:bg-[#004091] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+                className="flex items-center gap-1.5 bg-[#014ba0] hover:bg-[#004091] text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-all shrink-0"
               >
-                <Plus size={15} /> Nuevo
+                <Plus size={14} /> Nuevo
               </button>
             </div>
 
             {loading ? (
-              <div className="p-8 space-y-3">
+              <div className="p-6 sm:p-8 space-y-3">
                 {[...Array(4)].map((_, i) => <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />)}
               </div>
             ) : (
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-slate-100">
 
                 {/* ─── Categorías ─── */}
                 {tab === "categorias" && categorias.map(cat => (
-                  <div key={cat.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#014ba0]/5 border border-[#014ba0]/10 flex items-center justify-center">
+                  <div key={cat.id} className="flex items-center justify-between px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-[#014ba0]/5 border border-[#014ba0]/10 flex items-center justify-center shrink-0">
                         <Tag size={16} className="text-[#014ba0]" />
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{cat.nombre}</p>
-                        {cat.descripcion && <p className="text-[11px] text-slate-400">{cat.descripcion}</p>}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-800 truncate">{cat.nombre}</p>
+                        {cat.descripcion && <p className="text-[11px] text-slate-400 truncate max-w-xs sm:max-w-none">{cat.descripcion}</p>}
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Botones visibles en móvil, con efecto hover guardado para escritorio */}
+                    <div className="flex gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setModalCat({ open: true, item: cat })}
                         className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                         <Pencil size={15} />
@@ -139,17 +142,17 @@ export default function ConfiguracionPage() {
 
                 {/* ─── Departamentos ─── */}
                 {tab === "departamentos" && departamentos.map(dept => (
-                  <div key={dept.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                  <div key={dept.id} className="flex items-center justify-between px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
                         <Building2 size={16} className="text-emerald-500" />
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{dept.nombre}</p>
-                        {dept.responsable && <p className="text-[11px] text-slate-400">Responsable: {dept.responsable}</p>}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-800 truncate">{dept.nombre}</p>
+                        {dept.responsable && <p className="text-[11px] text-slate-400 truncate max-w-xs sm:max-w-none">Responsable: {dept.responsable}</p>}
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setModalDept({ open: true, item: dept })}
                         className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                         <Pencil size={15} />
@@ -165,23 +168,23 @@ export default function ConfiguracionPage() {
 
                 {/* ─── Usuarios ─── */}
                 {tab === "usuarios" && usuarios.map(u => (
-                  <div key={u.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black text-sm">
+                  <div key={u.id} className="flex items-center justify-between px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors group gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black text-xs sm:text-sm shrink-0">
                         {u.nombre_completo?.charAt(0).toUpperCase() ?? "?"}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-slate-800">{u.nombre_completo}</p>
-                        <p className="text-[11px] text-slate-400">{u.username} · {u.departamentos?.nombre ?? "Sin depto."}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-800 truncate">{u.nombre_completo}</p>
+                        <p className="text-[11px] text-slate-400 truncate max-w-xs sm:max-w-none">{u.username} · {u.departamentos?.nombre ?? "Sin depto."}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border ${ROL_CLS[u.rol] ?? ROL_CLS.usuario}`}>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[9px] sm:text-[10px] font-bold border shrink-0 ${ROL_CLS[u.rol] ?? ROL_CLS.usuario}`}>
                         {u.rol}
                       </span>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex shrink-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setModalUser({ open: true, item: u })}
-                          className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
+                          className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                           <Pencil size={15} />
                         </button>
                       </div>
@@ -196,30 +199,10 @@ export default function ConfiguracionPage() {
         </div>
       </main>
 
-      {/* ─── Modal Categoría ─── */}
-      <ModalCategoría
-        isOpen={modalCat.open}
-        item={modalCat.item}
-        onClose={() => setModalCat({ open: false, item: null })}
-        onSaved={loadData}
-      />
-
-      {/* ─── Modal Departamento ─── */}
-      <ModalDepartamento
-        isOpen={modalDept.open}
-        item={modalDept.item}
-        onClose={() => setModalDept({ open: false, item: null })}
-        onSaved={loadData}
-      />
-
-      {/* ─── Modal Usuario ─── */}
-      <ModalUsuario
-        isOpen={modalUser.open}
-        item={modalUser.item}
-        deptos={departamentos}
-        onClose={() => setModalUser({ open: false, item: null })}
-        onSaved={loadData}
-      />
+      {/* Modales */}
+      <ModalCategoría isOpen={modalCat.open} item={modalCat.item} onClose={() => setModalCat({ open: false, item: null })} onSaved={loadData} />
+      <ModalDepartamento isOpen={modalDept.open} item={modalDept.item} onClose={() => setModalDept({ open: false, item: null })} onSaved={loadData} />
+      <ModalUsuario isOpen={modalUser.open} item={modalUser.item} deptos={departamentos} onClose={() => setModalUser({ open: false, item: null })} onSaved={loadData} />
     </div>
   );
 
@@ -352,29 +335,29 @@ function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: bool
   return (
     <ModalShell title="Editar Usuario" Icon={UserCheck} onClose={onClose}>
       <div className="space-y-4">
-        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black">
+        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black text-sm shrink-0">
               {item.nombre_completo?.charAt(0).toUpperCase()}
             </div>
-            <div>
-              <p className="font-bold text-slate-800">{item.nombre_completo}</p>
-              <p className="text-xs text-slate-400">{item.username}</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-slate-800 text-sm truncate">{item.nombre_completo}</p>
+              <p className="text-xs text-slate-400 truncate">{item.username}</p>
             </div>
           </div>
         </div>
 
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Rol</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {[
               { val: "usuario", label: "Usuario", icon: "👤" },
               { val: "tecnico", label: "Técnico", icon: "🔧" },
               { val: "admin",   label: "Admin",   icon: "⚡" },
             ].map(r => (
               <button key={r.val} type="button" onClick={() => setRol(r.val)}
-                className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all text-center ${rol === r.val ? "bg-[#014ba0] text-white border-[#014ba0] shadow-md" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-[#014ba0]/40"}`}>
-                <span className="block text-lg">{r.icon}</span>
+                className={`py-2 px-1 rounded-xl border text-[11px] font-bold transition-all text-center ${rol === r.val ? "bg-[#014ba0] text-white border-[#014ba0] shadow-md" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-[#014ba0]/40"}`}>
+                <span className="block text-base mb-0.5">{r.icon}</span>
                 {r.label}
               </button>
             ))}
@@ -384,7 +367,7 @@ function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: bool
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Departamento</label>
           <select value={deptId} onChange={e => setDeptId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]">
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]">
             <option value="">Sin departamento</option>
             {deptos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
           </select>
@@ -400,15 +383,15 @@ function ModalShell({ title, Icon, onClose, children }: { title: string; Icon: a
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-[#004091] rounded-xl text-white"><Icon size={18} /></div>
-            <h2 className="text-base font-black text-slate-800">{title}</h2>
+      <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden max-h-[calc(100vh-2rem)] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-[#004091] rounded-xl text-white shrink-0"><Icon size={16} /></div>
+            <h2 className="text-sm sm:text-base font-black text-slate-800 truncate">{title}</h2>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors"><X size={18} /></button>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors"><X size={16} /></button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-5 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
@@ -419,21 +402,21 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
     <div>
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]" />
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]" />
     </div>
   );
 }
 
 function ModalFooter({ loading, onClose, onSave, label }: { loading: boolean; onClose: () => void; onSave: () => void; label: string }) {
   return (
-    <div className="flex justify-end gap-3 mt-6">
-      <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold text-sm hover:text-slate-700 transition-colors">
+    <div className="flex justify-end gap-2 mt-5 shrink-0">
+      <button onClick={onClose} className="px-4 py-2 text-slate-500 font-bold text-sm hover:text-slate-700 transition-colors">
         Cancelar
       </button>
       <button onClick={onSave} disabled={loading}
-        className="flex items-center gap-2 bg-[#014ba0] hover:bg-[#004091] text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-[#014ba0]/20 disabled:opacity-60 transition-all">
-        {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-        {loading ? "Guardando..." : label}
+        className="flex items-center gap-1.5 bg-[#014ba0] hover:bg-[#004091] text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md shadow-[#014ba0]/20 disabled:opacity-60 transition-all">
+        {loading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+        <span>{loading ? "Guardando..." : label}</span>
       </button>
     </div>
   );

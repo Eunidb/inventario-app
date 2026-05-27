@@ -1,6 +1,6 @@
 /**
  * @file app/historial/page.tsx
- * @description Historial de auditoría completamente responsivo y optimizado, sin alterar la lógica original.
+ * @description Historial de auditoría completamente responsivo y optimizado, versión compacta.
  */
 
 "use client";
@@ -298,7 +298,7 @@ export default function HistorialPage() {
           <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-5 mb-7">
             <div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
-                Historial de Operaciones
+                Historial 
               </h1>
 
               <p className="text-slate-500 font-medium text-sm mt-2">
@@ -381,34 +381,34 @@ export default function HistorialPage() {
             </div>
           )}
 
-          {/* CONTENEDOR DE LA TABLA (Aislamiento Responsivo) */}
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full max-w-full">
+          {/* CONTENEDOR DE LA TABLA COMPACTA */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full max-w-full">
             <div className="w-full overflow-x-auto block whitespace-nowrap scrolling-touch">
-              <table className="min-w-[1150px] w-full table-auto border-collapse">
+              <table className="min-w-[950px] w-full table-auto border-collapse">
                 <thead>
                   <tr className="bg-gradient-to-r from-[#014ba0] to-[#004091]">
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-white">
                       Artículo
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white">
                       Tipo
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white">
                       Cantidad
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-white">
                       Stock
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-white">
                       Usuario
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-white">
                       Fecha
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-left text-xs font-bold uppercase tracking-wider text-white">
                       Observaciones
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider text-white">
+                    <th className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-white">
                       Acciones
                     </th>
                   </tr>
@@ -418,8 +418,8 @@ export default function HistorialPage() {
                   {isLoading ? (
                     [...Array(5)].map((_, i) => (
                       <tr key={i}>
-                        <td colSpan={8} className="p-6">
-                          <div className="h-5 bg-slate-100 rounded-xl animate-pulse w-full" />
+                        <td colSpan={8} className="p-4">
+                          <div className="h-4 bg-slate-100 rounded-lg animate-pulse w-full" />
                         </td>
                       </tr>
                     ))
@@ -427,7 +427,7 @@ export default function HistorialPage() {
                     <tr>
                       <td
                         colSpan={8}
-                        className="py-20 text-center text-slate-400 font-semibold"
+                        className="py-12 text-center text-slate-400 text-sm font-semibold"
                       >
                         No se encontraron registros.
                       </td>
@@ -441,70 +441,70 @@ export default function HistorialPage() {
                       return (
                         <tr
                           key={m.id}
-                          className="hover:bg-[#014ba0]/5 transition-all even:bg-slate-50/40"
+                          className="hover:bg-[#014ba0]/5 text-slate-700 transition-all even:bg-slate-50/30"
                         >
-                          <td className="px-6 py-4 align-middle">
-                            <p className="font-semibold text-slate-800 whitespace-normal">
+                          <td className="px-4 py-2 align-middle">
+                            <p className="text-xs font-bold text-slate-800 whitespace-normal line-clamp-1">
                               {m.inventario?.nombre ?? "—"}
                             </p>
-                            <p className="text-xs font-mono text-[#014ba0] mt-1">
+                            <p className="text-[10px] font-mono text-[#014ba0] mt-0.5">
                               {m.inventario?.clave}
                             </p>
                           </td>
 
-                          <td className="px-6 py-4 text-center align-middle">
+                          <td className="px-4 py-2 text-center align-middle">
                             <span
-                              className={`px-3 py-1 rounded-lg text-xs font-bold shadow-sm inline-block ${cfg.cls}`}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm inline-block ${cfg.cls}`}
                             >
                               {cfg.label}
                             </span>
                           </td>
 
-                          <td className="px-6 py-4 text-center font-black text-slate-700 align-middle">
+                          <td className="px-4 py-2 text-center font-bold text-xs text-slate-800 align-middle">
                             {cfg.signo}
                             {m.cantidad}
                           </td>
 
-                          <td className="px-6 py-4 text-sm text-slate-700 align-middle">
-                            {m.stock_antes} →{" "}
+                          <td className="px-4 py-2 text-xs align-middle">
+                            <span className="text-slate-500">{m.stock_antes}</span> →{" "}
                             <span className="font-bold text-[#014ba0]">
                               {m.stock_despues}
                             </span>
                           </td>
 
-                          <td className="px-6 py-4 text-sm font-medium text-slate-700 align-middle whitespace-normal">
+                          <td className="px-4 py-2 text-xs font-medium align-middle whitespace-normal max-w-[150px] truncate">
                             {m.usuarios?.nombre_completo ?? "—"}
                           </td>
 
-                          <td className="px-6 py-4 text-sm text-slate-500 align-middle whitespace-nowrap">
+                          <td className="px-4 py-2 text-[11px] text-slate-500 align-middle whitespace-nowrap">
                             {formatFecha(m.fecha)}
                           </td>
 
-                          <td className="px-6 py-4 text-sm text-slate-500 max-w-[300px] truncate align-middle whitespace-normal">
+                          <td className="px-4 py-2 text-xs text-slate-500 max-w-[200px] truncate align-middle whitespace-normal">
                             {m.observaciones || "Sin observaciones"}
                           </td>
 
-                          <td className="px-6 py-4 align-middle">
-                            <div className="flex items-center justify-center gap-2">
+                          <td className="px-4 py-2 align-middle">
+                            <div className="flex items-center justify-center gap-1">
                               <button
                                 onClick={() => openModal(m, "ver")}
-                                className="p-2 rounded-xl text-[#014ba0] hover:bg-[#014ba0]/10 transition-all"
+                                className="p-1.5 rounded-lg text-[#014ba0] hover:bg-[#014ba0]/10 transition-all"
                               >
-                                <Eye size={18} />
+                                <Eye size={15} />
                               </button>
 
                               <button
                                 onClick={() => openModal(m, "editar")}
-                                className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 transition-all"
+                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-all"
                               >
-                                <Pencil size={18} />
+                                <Pencil size={15} />
                               </button>
 
                               <button
                                 onClick={() => openModal(m, "eliminar")}
-                                className="p-2 rounded-xl text-red-600 hover:bg-red-50 transition-all"
+                                className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 transition-all"
                               >
-                                <Trash2 size={18} />
+                                <Trash2 size={15} />
                               </button>
                             </div>
                           </td>
@@ -517,29 +517,29 @@ export default function HistorialPage() {
             </div>
 
             {/* PAGINACIÓN */}
-            <div className="px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between w-full">
-              <p className="text-sm text-slate-500 font-semibold text-center sm:text-left">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between w-full">
+              <p className="text-xs text-slate-500 font-semibold text-center sm:text-left">
                 Registros mostrados:{" "}
                 <span className="text-slate-900">{filtered.length}</span>
               </p>
 
-              <div className="flex gap-3 justify-center w-full sm:w-auto">
+              <div className="flex gap-2 justify-center w-full sm:w-auto">
                 <button
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-[#014ba0] disabled:opacity-40 transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-[#014ba0] disabled:opacity-40 transition-all"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={14} />
                   Anterior
                 </button>
 
                 <button
                   disabled={historial.length < PER_PAGE}
                   onClick={() => setPage((p) => p + 1)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#014ba0] text-white text-sm font-semibold disabled:opacity-40 transition-all"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#014ba0] text-white text-xs font-semibold disabled:opacity-40 transition-all"
                 >
                   Siguiente
-                  <ChevronRight size={16} />
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>

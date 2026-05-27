@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/client";
 import { type FormProps } from "./PanelExpediente";
-import { ShoppingCart, Plus, Trash2, X } from "lucide-react"; // Añadido X para el botón de cierre
+import { ShoppingCart, Plus, Trash2, X } from "lucide-react";
 import {
   FormHeader, Field, FotoFormato, SaveButton, inputCls,
 } from "./FormSolicitudTrabajo";
@@ -74,10 +74,7 @@ export default function FormSolicitudCompra({ registro, trabajoId, onSaved, onCl
     await supabase
       .from("registros_formato")
       .update({
-        datos_json: {
-          fecha, solicitante, departamento, urgencia,
-          articulos, autorizado, vobo, observaciones,
-        },
+        datos_json: { fecha, solicitante, departamento, urgencia, articulos, autorizado, vobo, observaciones },
         imagen_url: imagenUrl,
         completado: true,
         completado_por: user?.id ?? null,
@@ -89,188 +86,59 @@ export default function FormSolicitudCompra({ registro, trabajoId, onSaved, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 transition-opacity">
-      
-      {/* Contenedor Principal del Modal Centrado */}
-      <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/40 backdrop-blur-sm p-0 sm:p-4 transition-opacity">
+      <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
         
-        {/* Pestaña de arrastre táctil (Solo Mobile) */}
-        <div className="flex justify-center py-2 sm:hidden bg-slate-50 border-b border-slate-100">
-          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
-        </div>
-
-        {/* 1. Encabezado Fijo */}
-        <div className="relative p-5 sm:p-6 border-b border-slate-100 bg-white z-10 flex justify-between items-start">
+        {/* Encabezado */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white">
           <div className="flex-1 min-w-0">
-            <FormHeader
-              titulo="Solicitud de Compra"
-              subtitulo="Formato 4 · Adquisición de refacciones y materiales"
-              Icon={ShoppingCart}
-              color="teal"
-              completado={registro?.completado}
-            />
+            <FormHeader titulo="Solicitud de Compra" subtitulo="Formato 4 · Adquisición de materiales" Icon={ShoppingCart} color="teal" completado={registro?.completado} />
           </div>
-          {onClose && (
-            <button 
-              onClick={onClose}
-              className="ml-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-              type="button"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {onClose && <button onClick={onClose} className="p-2 ml-2 text-slate-400 hover:bg-slate-50 rounded-xl"><X size={20} /></button>}
         </div>
 
-        {/* 2. Cuerpo con Scroll Independiente e Intuitivo */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-5 bg-slate-50/50 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-          
-          {/* Tarjeta: Datos Generales */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Información General de la Solicitud
-            </p>
+        {/* Contenido */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-50/50">
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Datos Generales</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Fecha">
-                <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} />
-              </Field>
+              <Field label="Fecha"><input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} /></Field>
               <Field label="Urgencia">
                 <select value={urgencia} onChange={e => setUrgencia(e.target.value)} className={inputCls}>
-                  <option>Alta</option>
-                  <option>Normal</option>
-                  <option>Baja</option>
+                  <option>Alta</option><option>Normal</option><option>Baja</option>
                 </select>
               </Field>
-              <Field label="Solicitante">
-                <input value={solicitante} onChange={e => setSolicitante(e.target.value)}
-                  placeholder="Nombre del solicitante" className={inputCls} />
-              </Field>
-              <Field label="Departamento">
-                <input value={departamento} onChange={e => setDepartamento(e.target.value)}
-                  placeholder="Área que solicita la compra" className={inputCls} />
-              </Field>
+              <Field label="Solicitante"><input value={solicitante} onChange={e => setSolicitante(e.target.value)} className={inputCls} /></Field>
+              <Field label="Departamento"><input value={departamento} onChange={e => setDepartamento(e.target.value)} className={inputCls} /></Field>
             </div>
           </div>
 
-          {/* Bloque Dinámico: Artículos a comprar */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Artículos a comprar
-              </p>
-              <button
-                type="button"
-                onClick={addArticulo}
-                className="flex items-center gap-1.5 text-xs font-bold text-teal-600 hover:text-teal-800 bg-teal-50 hover:bg-teal-100/80 px-3 py-1.5 rounded-lg transition-all"
-              >
-                <Plus size={14} /> Agregar artículo
-              </button>
+            <div className="flex justify-between items-center px-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos a comprar</p>
+              <button type="button" onClick={addArticulo} className="flex items-center gap-1 text-xs font-bold text-teal-600 bg-teal-50 px-3 py-1.5 rounded-lg"><Plus size={14} /> Agregar</button>
             </div>
-
-            <div className="space-y-4">
-              {articulos.map((art, i) => (
-                <div key={i} className="bg-white border border-slate-200/80 rounded-xl p-4 sm:p-5 shadow-sm space-y-4 relative transition-all hover:border-slate-300">
-                  
-                  {/* Fila de control superior interna */}
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <span className="inline-flex items-center justify-center bg-slate-100 text-slate-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                      Artículo #{i + 1}
-                    </span>
-                    {articulos.length > 1 && (
-                      <button 
-                        type="button"
-                        onClick={() => removeArticulo(i)}
-                        className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Eliminar artículo"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Inputs internos distribuidos responsivamente */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="sm:col-span-2">
-                      <Field label="Descripción / artículo">
-                        <input value={art.descripcion}
-                          onChange={e => updateArticulo(i, "descripcion", e.target.value)}
-                          placeholder="Nombre o descripción del artículo" className={inputCls} />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Field label="Cantidad">
-                        <input value={art.cantidad} type="number" min="1"
-                          onChange={e => updateArticulo(i, "cantidad", e.target.value)}
-                          placeholder="0" className={inputCls} />
-                      </Field>
-                      <Field label="Unidad">
-                        <select value={art.unidad}
-                          onChange={e => updateArticulo(i, "unidad", e.target.value)}
-                          className={inputCls}>
-                          <option value="pz">pz</option>
-                          <option value="kg">kg</option>
-                          <option value="lt">lt</option>
-                          <option value="mts">mts</option>
-                          <option value="caja">caja</option>
-                          <option value="rollo">rollo</option>
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-
-                  <Field label="Justificación / uso">
-                    <input value={art.justificacion}
-                      onChange={e => updateArticulo(i, "justificacion", e.target.value)}
-                      placeholder="¿Para qué se usará?" className={inputCls} />
-                  </Field>
+            {articulos.map((art, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm space-y-3">
+                <div className="flex justify-between items-center"><span className="text-[10px] font-black uppercase text-slate-400">Artículo #{i + 1}</span>
+                  {articulos.length > 1 && <button onClick={() => removeArticulo(i)} className="text-red-400"><Trash2 size={16} /></button>}
                 </div>
-              ))}
-            </div>
+                <Field label="Descripción"><input value={art.descripcion} onChange={e => updateArticulo(i, "descripcion", e.target.value)} className={inputCls} /></Field>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Cantidad"><input value={art.cantidad} onChange={e => updateArticulo(i, "cantidad", e.target.value)} className={inputCls} /></Field>
+                  <Field label="Unidad"><select value={art.unidad} onChange={e => updateArticulo(i, "unidad", e.target.value)} className={inputCls}><option>pz</option><option>kg</option><option>lt</option></select></Field>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Tarjeta: Observaciones */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <Field label="Observaciones">
-              <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)}
-                rows={2} placeholder="Comentarios adicionales de la solicitud..."
-                className={`${inputCls} resize-none`} />
-            </Field>
-          </div>
-
-          {/* Tarjeta: Firmas */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Firmas de Autorización
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Autorizado por">
-                <input value={autorizado} onChange={e => setAutorizado(e.target.value)}
-                  placeholder="Nombre del autorizador" className={inputCls} />
-              </Field>
-              <Field label="Vo.Bo.">
-                <input value={vobo} onChange={e => setVobo(e.target.value)}
-                  placeholder="Nombre / firma de visto bueno" className={inputCls} />
-              </Field>
-            </div>
-          </div>
-
-          {/* Tarjeta: Evidencia Fotográfica */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <FotoFormato
-              imagenUrl={imagenUrl}
-              uploading={uploading}
-              onUpload={uploadFoto}
-              onDelete={() => setImagenUrl(null)}
-            />
-          </div>
+          <FotoFormato imagenUrl={imagenUrl} uploading={uploading} onUpload={uploadFoto} onDelete={() => setImagenUrl(null)} color="teal" />
         </div>
 
-        {/* 3. Footer Fijo */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-white z-10 flex justify-end shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-          <div className="w-full sm:w-auto min-w-[150px]">
-            <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} />
-          </div>
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+          <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="teal" />
         </div>
-
       </div>
     </div>
   );

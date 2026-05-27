@@ -1,6 +1,6 @@
 /**
  * @file app/inventario/page.tsx
- * @description Vista de inventario mejorada con Buscador Dinámico y Modal de Confirmación para eliminación.
+ * @description Vista de inventario optimizada con diseño corporativo, buscador dinámico y desplazamiento responsivo.
  */
 
 "use client";
@@ -23,7 +23,7 @@ const ESTADO_LABELS: Record<EstadoInventarioEnum, { label: string; cls: string; 
   activo:        { label: "Activo",        cls: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
   inactivo:      { label: "Inactivo",      cls: "bg-slate-100 text-slate-600 border-slate-200",      dot: "bg-slate-400" },
   en_reparacion: { label: "En reparación", cls: "bg-amber-50 text-amber-700 border-amber-200",       dot: "bg-amber-500" },
-  mantenimiento: { label: "Mantenimiento", cls: "bg-[#004091]/10 text-[#004091] border-[#004091]/20", dot: "bg-[#004091]" },
+  mantenimiento: { label: "Mantenimiento", cls: "bg-blue-50 text-[#004091] border-[#004091]/20",     dot: "bg-[#004091]" },
   dado_de_baja:  { label: "Baja",          cls: "bg-rose-50 text-rose-700 border-rose-200",          dot: "bg-rose-500" },
 };
 
@@ -119,48 +119,48 @@ export default function InventarioPage() {
   const totalPaginas = Math.ceil(totalCount / PER_PAGE);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50 font-sans antialiased text-slate-800">
       <Sidebar />
 
-      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full">
-        <div className="p-4 md:p-6 lg:p-10 pt-20 lg:pt-10 max-w-[1400px] mx-auto">
+      <main className="flex-1 transition-all duration-300 lg:ml-64 w-full overflow-hidden">
+        <div className="p-4 md:p-6 lg:p-10 pt-20 lg:pt-10 max-w-[1400px] mx-auto space-y-6">
 
           {/* ── Encabezado ── */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-            <div className="space-y-1.5">
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Inventario</h1>
-              <p className="text-slate-500 font-medium">Gestión de artículos y existencias</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+            <div className="space-y-1">
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Inventario</h1>
+              <p className="text-sm text-slate-500 font-medium">Gestión integral de artículos, activos y existencias en tiempo real.</p>
             </div>
             {isAdmin && (
               <button
                 onClick={() => { setEditItem(null); setModalOpen(true); }}
-                className="inline-flex items-center justify-center gap-2 bg-[#004091] hover:bg-[#002b63] text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-[#004091]/30 transition-all hover:-translate-y-0.5 active:scale-95 w-full md:w-auto"
+                className="inline-flex items-center justify-center gap-2 bg-[#004091] hover:bg-[#014ba0] text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm hover:shadow-md transition-all duration-200 active:scale-95 w-full sm:w-auto text-sm"
               >
-                <Plus size={20} strokeWidth={2.5} />
+                <Plus size={18} strokeWidth={2.5} />
                 <span>Nuevo Artículo</span>
               </button>
             )}
           </div>
 
           {/* ── Filtros Avanzados ── */}
-          <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200 mb-8">
+          <div className="bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-200/80">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
-              {/* Buscador Inteligente con botón de borrado dinámico (X) */}
-              <div className="relative md:col-span-2 group flex items-center">
-                <Search className="absolute left-4 text-[#004091]/50 group-focus-within:text-[#004091] transition-colors pointer-events-none" size={18} strokeWidth={2.5} />
+              {/* Buscador con diseño formal */}
+              <div className="relative md:col-span-2 flex items-center group">
+                <Search className="absolute left-4 text-slate-400 group-focus-within:text-[#014ba0] transition-colors duration-200 pointer-events-none" size={18} strokeWidth={2.2} />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   placeholder="Buscar por nombre, marca o clave..."
-                  className="w-full pl-11 pr-11 py-3 bg-slate-50 text-slate-800 placeholder-slate-400 font-medium text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#004091] focus:ring-4 focus:ring-[#004091]/10 transition-all duration-200"
+                  className="w-full pl-11 pr-11 py-2.5 bg-slate-50 text-slate-900 placeholder-slate-400 font-medium text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-[#014ba0] focus:bg-white focus:ring-4 focus:ring-[#014ba0]/10 transition-all duration-200"
                 />
                 {search.length > 0 && (
                   <button
                     type="button"
                     onClick={() => { setSearch(""); setPage(1); }}
-                    className="absolute right-3 p-1.5 rounded-lg bg-slate-200/50 hover:bg-[#004091]/10 text-slate-500 hover:text-[#004091] transition-colors"
+                    className="absolute right-3 p-1.5 rounded-lg text-slate-400 hover:bg-slate-200/60 hover:text-slate-600 transition-all duration-200"
                     title="Borrar búsqueda"
                   >
                     <X size={14} strokeWidth={2.5} />
@@ -168,26 +168,26 @@ export default function InventarioPage() {
                 )}
               </div>
 
-              {/* Dropdown Categoría */}
+              {/* Menú desplegable: Categoría */}
               <div className="relative">
                 <button
                   onClick={() => { setOpenCat(!openCat); setOpenEst(false); }}
-                  className="w-full flex items-center justify-between py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-[#004091]/50 focus:border-[#004091] focus:ring-4 focus:ring-[#004091]/10 text-slate-700 font-medium transition-all"
+                  className="w-full flex items-center justify-between py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-[#014ba0]/50 focus:border-[#014ba0] focus:bg-white focus:ring-4 focus:ring-[#014ba0]/10 text-slate-700 font-medium transition-all duration-200 text-sm"
                 >
-                  <span className="truncate text-sm">
+                  <span className="truncate">
                     {categorias.find(c => c.id === catFilter)?.nombre || "Todas las categorías"}
                   </span>
-                  <ChevronDown className={`flex-shrink-0 transition-transform duration-200 ${openCat ? "rotate-180 text-[#004091]" : "text-slate-400"}`} size={18} />
+                  <ChevronDown className={`flex-shrink-0 text-slate-400 transition-transform duration-200 ${openCat ? "rotate-180 text-[#014ba0]" : ""}`} size={16} />
                 </button>
                 {openCat && (
                   <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                     <button onClick={() => { setCatFilter(null); setOpenCat(false); setPage(1); }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#004091]/5 hover:text-[#004091] text-sm font-medium transition-colors">
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 hover:text-[#014ba0] text-sm font-medium transition-colors duration-150">
                       Todas las categorías
                     </button>
                     {categorias.map(c => (
                       <button key={c.id} onClick={() => { setCatFilter(c.id); setOpenCat(false); setPage(1); }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#004091]/5 hover:text-[#004091] text-sm font-medium transition-colors">
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 hover:text-[#014ba0] text-sm font-medium transition-colors duration-150">
                         {c.nombre}
                       </button>
                     ))}
@@ -195,26 +195,26 @@ export default function InventarioPage() {
                 )}
               </div>
 
-              {/* Dropdown Estado */}
+              {/* Menú desplegable: Estado */}
               <div className="relative">
                 <button
                   onClick={() => { setOpenEst(!openEst); setOpenCat(false); }}
-                  className="w-full flex items-center justify-between py-3 px-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-[#004091]/50 focus:border-[#004091] focus:ring-4 focus:ring-[#004091]/10 text-slate-700 font-medium transition-all"
+                  className="w-full flex items-center justify-between py-2.5 px-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-[#014ba0]/50 focus:border-[#014ba0] focus:bg-white focus:ring-4 focus:ring-[#014ba0]/10 text-slate-700 font-medium transition-all duration-200 text-sm"
                 >
-                  <span className="truncate text-sm">
+                  <span className="truncate">
                     {ESTADO_LABELS[estFilter as EstadoInventarioEnum]?.label || "Cualquier estado"}
                   </span>
-                  <ChevronDown className={`flex-shrink-0 transition-transform duration-200 ${openEst ? "rotate-180 text-[#004091]" : "text-slate-400"}`} size={18} />
+                  <ChevronDown className={`flex-shrink-0 text-slate-400 transition-transform duration-200 ${openEst ? "rotate-180 text-[#014ba0]" : ""}`} size={16} />
                 </button>
                 {openEst && (
                   <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 animate-in fade-in slide-in-from-top-2 duration-150">
                     <button onClick={() => { setEstFilter(""); setOpenEst(false); setPage(1); }}
-                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#004091]/5 hover:text-[#004091] text-sm font-medium transition-colors">
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 hover:text-[#014ba0] text-sm font-medium transition-colors duration-150">
                       Cualquier estado
                     </button>
                     {Object.entries(ESTADO_LABELS).map(([val, { label }]) => (
                       <button key={val} onClick={() => { setEstFilter(val); setOpenEst(false); setPage(1); }}
-                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-[#004091]/5 hover:text-[#004091] text-sm font-medium transition-colors">
+                        className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 hover:text-[#014ba0] text-sm font-medium transition-colors duration-150">
                         {label}
                       </button>
                     ))}
@@ -224,50 +224,52 @@ export default function InventarioPage() {
             </div>
           </div>
 
-          {/* ── Tabla de Contenido ── */}
+          {/* ── Estructura de Tabla con Scroll Adaptable ── */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            {/* Contenedor con scroll horizontal fluido para pantallas pequeñas */}
+            <div className="overflow-x-auto w-full scrollbar-thin scrollbar-thumb-slate-200">
+              {/* Se define un ancho mínimo estricto para mantener proporciones en móviles */}
+              <table className="w-full text-left border-collapse min-w-[950px] table-fixed">
+                <colgroup>
+                  <col className="w-[30%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[10%]" />
+                </colgroup>
                 <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200">
-                    <th className="px-6 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap">
-                      Artículo
-                    </th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest hidden md:table-cell whitespace-nowrap">
-                      Categoría
-                    </th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest hidden xl:table-cell whitespace-nowrap">
+                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <th className="px-6 py-4">Artículo</th>
+                    <th className="px-5 py-4">Categoría</th>
+                    <th className="px-5 py-4">
                       <div className="flex items-center gap-1.5">
-                        <MapPin size={12} className="text-[#004091]" />
+                        <MapPin size={13} className="text-[#004091]" />
                         Ubicación
                       </div>
                     </th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-center whitespace-nowrap">
-                      Stock
-                    </th>
-                    <th className="px-5 py-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest text-center hidden sm:table-cell whitespace-nowrap">
-                      Estado
-                    </th>
-                    <th className="px-6 py-4 w-28 whitespace-nowrap"></th>
+                    <th className="px-5 py-4 text-center">Stock</th>
+                    <th className="px-5 py-4 text-center">Estado</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                   {isLoading ? (
                     [...Array(6)].map((_, i) => (
-                      <tr key={i}>
+                      <tr key={i} className="animate-pulse">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-slate-100 animate-pulse flex-shrink-0" />
-                            <div className="space-y-2.5">
-                              <div className="h-3.5 bg-slate-100 rounded-md w-32 md:w-48 animate-pulse" />
-                              <div className="h-2.5 bg-slate-100 rounded-md w-20 animate-pulse" />
+                            <div className="w-12 h-12 rounded-xl bg-slate-100 flex-shrink-0" />
+                            <div className="space-y-2 flex-1">
+                              <div className="h-3.5 bg-slate-100 rounded w-3/4" />
+                              <div className="h-2.5 bg-slate-100 rounded w-1/2" />
                             </div>
                           </div>
                         </td>
                         {[...Array(4)].map((_, j) => (
-                          <td key={j} className="px-5 py-4 hidden sm:table-cell">
-                            <div className="h-3 bg-slate-100 rounded-md w-full max-w-[80px] mx-auto animate-pulse" />
+                          <td key={j} className="px-5 py-4">
+                            <div className="h-3 bg-slate-100 rounded w-2/3 mx-auto" />
                           </td>
                         ))}
                         <td className="px-6 py-4" />
@@ -275,11 +277,11 @@ export default function InventarioPage() {
                     ))
                   ) : items.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-24 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <Search size={40} className="text-slate-300 mb-4" />
-                          <p className="text-slate-600 text-base font-semibold">No se encontraron resultados</p>
-                          <p className="text-slate-400 text-sm mt-1">Intenta ajustando los filtros de búsqueda.</p>
+                      <td colSpan={6} className="py-20 text-center">
+                        <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                          <Search size={36} className="text-slate-300 mb-3" />
+                          <p className="text-slate-700 font-semibold text-base">No se encontraron resultados</p>
+                          <p className="text-slate-400 text-xs mt-1">Intente ajustar los parámetros de búsqueda o remueva los filtros activos.</p>
                         </div>
                       </td>
                     </tr>
@@ -287,99 +289,103 @@ export default function InventarioPage() {
                     const est = ESTADO_LABELS[item.estado];
                     const stockBajo = item.stock_disponible <= item.stock_minimo;
                     return (
-                      <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <tr key={item.id} className="hover:bg-slate-50/60 transition-colors duration-150 group">
 
-                        {/* ── Artículo ── */}
+                        {/* Columna: Artículo */}
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-sm">
                               {item.imagen_url
                                 ? <img src={item.imagen_url} alt={item.nombre} className="w-full h-full object-cover" />
-                                : <Package className="text-slate-400" size={24} strokeWidth={1.5} />}
+                                : <Package className="text-slate-400" size={20} strokeWidth={1.5} />}
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-slate-900 truncate max-w-[160px] md:max-w-[220px]">{item.nombre}</p>
-                              <p className="text-[10px] font-mono text-[#004091] bg-[#004091]/10 px-1.5 py-0.5 rounded flex-inline inline-block uppercase tracking-wider mt-1">
-                                {item.clave}
-                              </p>
-                              {item.marca && (
-                                <p className="text-[11px] text-slate-500 mt-1 truncate max-w-[150px]">{item.marca}{item.modelo ? ` · ${item.modelo}` : ""}</p>
-                              )}
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-slate-900 truncate" title={item.nombre}>{item.nombre}</p>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span className="text-[10px] font-mono text-[#004091] bg-[#004091]/10 px-1.5 py-0.5 rounded uppercase tracking-wider font-semibold">
+                                  {item.clave}
+                                </span>
+                                {item.marca && (
+                                  <span className="text-xs text-slate-400 truncate max-w-[120px]">
+                                    {item.marca}{item.modelo ? ` · ${item.modelo}` : ""}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
 
-                        {/* ── Categoría ── */}
-                        <td className="px-5 py-4 hidden md:table-cell">
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-semibold whitespace-nowrap">
-                            <Tag size={12} className="text-[#004091]" />
+                        {/* Columna: Categoría */}
+                        <td className="px-5 py-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-medium whitespace-nowrap">
+                            <Tag size={12} className="text-[#014ba0]" />
                             {(item.categorias as any)?.nombre ?? "General"}
                           </span>
                         </td>
 
-                        {/* ── Ubicación ── */}
-                        <td className="px-5 py-4 hidden xl:table-cell">
+                        {/* Columna: Ubicación */}
+                        <td className="px-5 py-4">
                           {item.ubicacion ? (
-                            <div className="flex items-center gap-1.5 text-sm text-slate-600">
-                              <MapPin size={14} className="text-slate-400 flex-shrink-0" />
-                              <span className="truncate max-w-[140px]">{item.ubicacion}</span>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                              <MapPin size={13} className="text-slate-400 flex-shrink-0" />
+                              <span className="truncate" title={item.ubicacion}>{item.ubicacion}</span>
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-sm italic">—</span>
+                            <span className="text-slate-400 text-xs italic">No especificada</span>
                           )}
                         </td>
 
-                        {/* ── Stock ── */}
+                        {/* Columna: Stock */}
                         <td className="px-5 py-4 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className={`text-lg font-black ${stockBajo ? "text-red-600" : "text-slate-800"}`}>
+                          <div className="flex flex-col items-center justify-center">
+                            <span className={`text-base font-bold tracking-tight ${stockBajo ? "text-rose-600" : "text-slate-900"}`}>
                               {item.stock_disponible}
                             </span>
-                            <span className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+                            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
                               Total: {item.stock_total}
                             </span>
                             {stockBajo && (
-                              <span className="text-[9px] font-black text-red-600 bg-red-100 px-1.5 py-0.5 rounded mt-1 uppercase tracking-wider animate-pulse whitespace-nowrap">
+                              <span className="text-[9px] font-bold text-rose-600 bg-rose-50 border border-rose-100 px-1.5 py-0.5 rounded mt-1 uppercase tracking-wider">
                                 Stock bajo
                               </span>
                             )}
                           </div>
                         </td>
 
-                        {/* ── Estado ── */}
-                        <td className="px-5 py-4 text-center hidden sm:table-cell">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border whitespace-nowrap ${est?.cls}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${est?.dot}`} />
+                        {/* Columna: Estado */}
+                        <td className="px-5 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${est?.cls}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${est?.dot}`} />
                             {est?.label}
                           </span>
                         </td>
 
-                        {/* ── Acciones Responsivas ── */}
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-1.5 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                        {/* Columna: Acciones Omitidas/Visibles con Efectos */}
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">
                             <button
                               onClick={() => setFichaItem(item)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-[#004091] hover:bg-[#004091]/10 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all duration-150"
                               title="Ver ficha técnica"
                             >
-                              <Eye size={18} strokeWidth={2} />
+                              <Eye size={16} />
                             </button>
 
                             <button
                               onClick={() => handleEdit(item)}
-                              className="p-2 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition-all duration-150"
                               title="Editar artículo"
                             >
-                              <Pencil size={18} strokeWidth={2} />
+                              <Pencil size={16} />
                             </button>
 
                             {isAdmin && (
                               <button
                                 onClick={() => requireDeleteConfirm(item.id.toString())}
-                                className="p-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                                title="Eliminar permanentemente"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all duration-150"
+                                title="Eliminar artículo"
                               >
-                                <Trash2 size={18} strokeWidth={2} />
+                                <Trash2 size={16} />
                               </button>
                             )}
                           </div>
@@ -391,32 +397,32 @@ export default function InventarioPage() {
               </table>
             </div>
 
-            {/* ── Paginación ── */}
-            <div className="px-4 md:px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <p className="text-sm font-medium text-slate-500 order-2 sm:order-1">
-                {isLoading ? "Cargando..." : totalCount === 0 ? "Sin resultados" : (
+            {/* ── Paginación Formal ── */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs font-medium text-slate-500">
+                {isLoading ? "Cargando registros..." : totalCount === 0 ? "Sin registros en inventario" : (
                   <>
-                    Mostrando del <span className="text-slate-900 font-bold">{rangoDesde}</span> al <span className="text-slate-900 font-bold">{rangoHasta}</span> de <span className="text-slate-900 font-bold">{totalCount}</span> artículos
+                    Mostrando del <span className="text-slate-900 font-semibold">{rangoDesde}</span> al <span className="text-slate-900 font-semibold">{rangoHasta}</span> de <span className="text-slate-900 font-semibold">{totalCount}</span> artículos registrados
                   </>
                 )}
               </p>
-              <div className="flex items-center gap-2 order-1 sm:order-2">
+              <div className="flex items-center gap-2">
                 <button
                   disabled={page === 1 || isLoading}
                   onClick={() => setPage(p => p - 1)}
-                  className="p-2 rounded-lg text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                  className="p-2 rounded-lg text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all duration-150 shadow-sm"
                 >
-                  <ChevronLeft size={18} />
+                  <ChevronLeft size={16} />
                 </button>
-                <span className="text-sm font-bold text-slate-700 min-w-[70px] text-center">
-                  {page} / {totalPaginas || 1}
+                <span className="text-xs font-semibold text-slate-700 min-w-[60px] text-center">
+                  {page} de {totalPaginas || 1}
                 </span>
                 <button
                   disabled={page >= totalPaginas || isLoading}
                   onClick={() => setPage(p => p + 1)}
-                  className="p-2 rounded-lg text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-all shadow-sm"
+                  className="p-2 rounded-lg text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-slate-600 transition-all duration-150 shadow-sm"
                 >
-                  <ChevronRight size={18} />
+                  <ChevronRight size={16} />
                 </button>
               </div>
             </div>
@@ -425,7 +431,7 @@ export default function InventarioPage() {
         </div>
       </main>
 
-      {/* Modal: Editar / crear artículo */}
+      {/* Componentes modales del sistema (Mantienen su lógica de operaciones intacta) */}
       <ModalGestion
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -433,7 +439,6 @@ export default function InventarioPage() {
         onSaved={loadInventario}
       />
 
-      {/* Modal: Ficha técnica completa centrada y responsiva */}
       {fichaItem && (
         <ModalFichaTecnica
           item={fichaItem}
@@ -442,7 +447,6 @@ export default function InventarioPage() {
         />
       )}
 
-      {/* Modal: Confirmación de Eliminación Premium centrado */}
       <ModalConfirmar
         isOpen={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}

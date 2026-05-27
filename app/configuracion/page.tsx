@@ -9,14 +9,14 @@ import { createClient } from "@/lib/client";
 import Sidebar from "@/components/sidebar";
 import {
   Settings, Tag, Building2, Users, Plus, Pencil, Trash2,
-  X, Loader2, Save, ChevronRight, Shield, UserCheck
+  X, Loader2, Save, Shield, UserCheck
 } from "lucide-react";
 
 type Tab = "categorias" | "departamentos" | "usuarios";
 
 const ROL_CLS: Record<string, string> = {
   admin:   "bg-purple-50 text-purple-700 border-purple-100",
-  usuario: "bg-blue-50 text-blue-700 border-blue-100",
+  usuario: "bg-[#014ba0]/5 text-[#014ba0] border-[#014ba0]/10",
   tecnico: "bg-teal-50 text-teal-700 border-teal-100",
 };
 
@@ -64,7 +64,7 @@ export default function ConfiguracionPage() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
-              <Settings size={28} className="text-slate-500" />
+              <Settings size={28} className="text-[#004091]" />
               Configuración
             </h1>
             <p className="text-slate-500 font-medium mt-1">Administra categorías, departamentos y usuarios del sistema</p>
@@ -74,10 +74,10 @@ export default function ConfiguracionPage() {
           <div className="flex gap-2 mb-6 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-fit">
             {TABS.map(({ id, label, Icon, count }) => (
               <button key={id} onClick={() => setTab(id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === id ? "bg-blue-600 text-white shadow-md" : "text-slate-500 hover:text-slate-700"}`}>
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === id ? "bg-[#014ba0] text-white shadow-md hover:bg-[#004091]" : "text-slate-500 hover:text-slate-700"}`}>
                 <Icon size={15} />
                 {label}
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${tab === id ? "bg-blue-500 text-white" : "bg-slate-100 text-slate-500"}`}>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${tab === id ? "bg-[#004091] text-white" : "bg-slate-100 text-slate-500"}`}>
                   {count}
                 </span>
               </button>
@@ -98,7 +98,7 @@ export default function ConfiguracionPage() {
                   if (tab === "departamentos")  setModalDept({ open: true, item: null });
                   if (tab === "usuarios")       setModalUser({ open: true, item: null });
                 }}
-                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
+                className="flex items-center gap-1.5 bg-[#014ba0] hover:bg-[#004091] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
               >
                 <Plus size={15} /> Nuevo
               </button>
@@ -115,8 +115,8 @@ export default function ConfiguracionPage() {
                 {tab === "categorias" && categorias.map(cat => (
                   <div key={cat.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
-                        <Tag size={16} className="text-blue-500" />
+                      <div className="w-9 h-9 rounded-xl bg-[#014ba0]/5 border border-[#014ba0]/10 flex items-center justify-center">
+                        <Tag size={16} className="text-[#014ba0]" />
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-800">{cat.nombre}</p>
@@ -125,7 +125,7 @@ export default function ConfiguracionPage() {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setModalCat({ open: true, item: cat })}
-                        className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                        className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                         <Pencil size={15} />
                       </button>
                       <button onClick={() => handleDeleteCat(cat.id)}
@@ -151,7 +151,7 @@ export default function ConfiguracionPage() {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => setModalDept({ open: true, item: dept })}
-                        className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                        className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                         <Pencil size={15} />
                       </button>
                       <button onClick={() => handleDeleteDept(dept.id)}
@@ -167,7 +167,7 @@ export default function ConfiguracionPage() {
                 {tab === "usuarios" && usuarios.map(u => (
                   <div key={u.id} className="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition-colors group">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black text-sm">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black text-sm">
                         {u.nombre_completo?.charAt(0).toUpperCase() ?? "?"}
                       </div>
                       <div>
@@ -181,7 +181,7 @@ export default function ConfiguracionPage() {
                       </span>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setModalUser({ open: true, item: u })}
-                          className="p-2 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                          className="p-2 rounded-lg text-slate-400 hover:text-[#014ba0] hover:bg-[#014ba0]/5 transition-all">
                           <Pencil size={15} />
                         </button>
                       </div>
@@ -354,7 +354,7 @@ function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: bool
       <div className="space-y-4">
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white font-black">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#014ba0] to-[#004091] flex items-center justify-center text-white font-black">
               {item.nombre_completo?.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -373,7 +373,7 @@ function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: bool
               { val: "admin",   label: "Admin",   icon: "⚡" },
             ].map(r => (
               <button key={r.val} type="button" onClick={() => setRol(r.val)}
-                className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all text-center ${rol === r.val ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-blue-300"}`}>
+                className={`py-3 px-2 rounded-xl border text-xs font-bold transition-all text-center ${rol === r.val ? "bg-[#014ba0] text-white border-[#014ba0] shadow-md" : "bg-slate-50 text-slate-500 border-slate-200 hover:border-[#014ba0]/40"}`}>
                 <span className="block text-lg">{r.icon}</span>
                 {r.label}
               </button>
@@ -384,7 +384,7 @@ function ModalUsuario({ isOpen, item, deptos, onClose, onSaved }: { isOpen: bool
         <div>
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">Departamento</label>
           <select value={deptId} onChange={e => setDeptId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100">
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]">
             <option value="">Sin departamento</option>
             {deptos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
           </select>
@@ -403,7 +403,7 @@ function ModalShell({ title, Icon, onClose, children }: { title: string; Icon: a
       <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-600 rounded-xl text-white"><Icon size={18} /></div>
+            <div className="p-2.5 bg-[#004091] rounded-xl text-white"><Icon size={18} /></div>
             <h2 className="text-base font-black text-slate-800">{title}</h2>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors"><X size={18} /></button>
@@ -419,7 +419,7 @@ function Field({ label, value, onChange, placeholder }: { label: string; value: 
     <div>
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">{label}</label>
       <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-blue-100" />
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-[#014ba0]/10 focus:border-[#014ba0]" />
     </div>
   );
 }
@@ -431,7 +431,7 @@ function ModalFooter({ loading, onClose, onSave, label }: { loading: boolean; on
         Cancelar
       </button>
       <button onClick={onSave} disabled={loading}
-        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-blue-200 disabled:opacity-60 transition-all">
+        className="flex items-center gap-2 bg-[#014ba0] hover:bg-[#004091] text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md shadow-[#014ba0]/20 disabled:opacity-60 transition-all">
         {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
         {loading ? "Guardando..." : label}
       </button>

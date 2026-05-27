@@ -1,3 +1,8 @@
+/**
+ * @file components/ModalDevolucion.tsx
+ * @description Modal para registrar la devolución de artículos de un préstamo.
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -33,43 +38,48 @@ export default function ModalDevolucion({ isOpen, onClose, prestamo, onSaved }: 
     if (devolver.length === 0) { alert("Indica al menos una devolución mayor a 0."); return; }
 
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
 
-    for (const l of devolver) {
-      const nuevaDevuelta = l.cantidad_devuelta + getCantidad(l);
-      const { error } = await supabase
-        .from("detalle_prestamo")
-        .update({ cantidad_devuelta: nuevaDevuelta })
-        .eq("id", l.id);
+      for (const l of devolver) {
+        const nuevaDevuelta = l.cantidad_devuelta + getCantidad(l);
+        const { error } = await supabase
+          .from("detalle_prestamo")
+          .update({ cantidad_devuelta: nuevaDevuelta })
+          .eq("id", l.id);
 
-      if (error) { alert("Error: " + error.message); setLoading(false); return; }
+        if (error) throw error;
 
-      await supabase.from("historial_inventario").insert({
-        inventario_id: l.inventario_id,
-        usuario_id: user!.id,
-        tipo_movimiento: "devolucion",
-        cantidad: getCantidad(l),
-        prestamo_id: prestamo.id,
-        observaciones: `Devolución préstamo #${prestamo.id}`,
+        await supabase.from("historial_inventario").insert({
+          inventario_id: l.inventario_id,
+          usuario_id: user!.id,
+          tipo_movimiento: "devolucion",
+          cantidad: getCantidad(l),
+          prestamo_id: prestamo.id,
+          observaciones: `Devolución préstamo #${prestamo.id}`,
+        });
+      }
+
+      const todasDevueltas = lineas.every(l => {
+        const yaDevuelta = l.cantidad_devuelta + (getCantidad(l) || 0);
+        return yaDevuelta >= l.cantidad;
       });
+
+      if (todasDevueltas) {
+        await supabase
+          .from("prestamos")
+          .update({ estado: "devuelto", fecha_devolucion: new Date().toISOString() })
+          .eq("id", prestamo.id);
+      }
+
+      setDevoluciones({});
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
-
-    const todasDevueltas = lineas.every(l => {
-      const yaDevuelta = l.cantidad_devuelta + (getCantidad(l) || 0);
-      return yaDevuelta >= l.cantidad;
-    });
-
-    if (todasDevueltas) {
-      await supabase
-        .from("prestamos")
-        .update({ estado: "devuelto", fecha_devolucion: new Date().toISOString() })
-        .eq("id", prestamo.id);
-    }
-
-    setLoading(false);
-    setDevoluciones({});
-    onSaved();
-    onClose();
   };
 
   return (
@@ -95,7 +105,7 @@ export default function ModalDevolucion({ isOpen, onClose, prestamo, onSaved }: 
         </div>
 
         {/* Contenido con Scroll responsivo */}
-        <div className="p-5 sm:p-6 space-y-3 overflow-y-auto flex-1">
+        <div className="p-5 sm:p-6 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
           {pendientes.length === 0 ? (
             <div className="py-10 text-center">
               <CheckCircle2 size={44} className="text-blue-500 mx-auto mb-3 animate-bounce" />

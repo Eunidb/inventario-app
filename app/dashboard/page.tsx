@@ -1,6 +1,6 @@
 /**
  * @file app/dashboard/page.tsx
- * @description Dashboard optimizado, responsive y coherente con el Sidebar lateral.
+ * @description Dashboard optimizado, responsive y coherente con el Sidebar lateral y la nueva identidad visual.
  */
 
 "use client";
@@ -101,7 +101,7 @@ export default function DashboardPage() {
     const map: Record<string, string> = {
       entrada: "bg-emerald-100 text-emerald-700",
       salida: "bg-orange-100 text-orange-700",
-      prestamo: "bg-[#004091]/10 text-[#004091]",
+      prestamo: "bg-[#014ba0]/10 text-[#014ba0]",
       devolucion: "bg-teal-100 text-teal-700",
       ajuste: "bg-purple-100 text-purple-700",
       baja: "bg-red-100 text-red-700",
@@ -173,7 +173,7 @@ export default function DashboardPage() {
                 <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                   <TrendingUp size={16} className="text-amber-500" /> Alertas de Stock
                 </h2>
-                <Link href="/inventario" className="text-xs text-[#004091] font-bold hover:underline">
+                <Link href="/inventario" className="text-xs text-[#014ba0] font-bold hover:text-[#004091] hover:underline transition-colors">
                   Gestionar
                 </Link>
               </div>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                   <Clock size={16} className="text-[#004091]" /> Actividad Reciente
                 </h2>
-                <Link href="/historial" className="text-xs text-[#004091] font-bold hover:underline">
+                <Link href="/historial" className="text-xs text-[#014ba0] font-bold hover:text-[#004091] hover:underline transition-colors">
                   Ver historial
                 </Link>
               </div>

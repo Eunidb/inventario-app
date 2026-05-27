@@ -1,3 +1,8 @@
+/**
+ * @file components/ModalDetallesPrestamo.tsx
+ * @description Vista rápida detallada de un préstamo con diseño unificado.
+ */
+
 "use client";
 
 import { X, Calendar, User, ShieldCheck, Box, Clock, FileText } from "lucide-react";
@@ -25,10 +30,11 @@ export default function ModalDetallesPrestamo({ isOpen, onClose, prestamo }: Pro
 
   return (
     <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {/* Contenedor del Modal */}
       <div className="bg-white w-full max-w-lg rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
         
-        {/* Header con acentos Azules */}
-        <div className="p-5 sm:p-7 flex justify-between items-center bg-blue-50/70 border-b border-blue-100">
+        {/* Header */}
+        <div className="p-5 sm:p-7 flex justify-between items-center bg-blue-50/40 border-b border-blue-100">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-lg font-black text-slate-800 tracking-tight">Vista Rápida</h2>
@@ -36,22 +42,24 @@ export default function ModalDetallesPrestamo({ isOpen, onClose, prestamo }: Pro
                 {currentEstado.label}
               </span>
             </div>
-            <p className="text-[10px] font-bold tracking-widest text-slate-400 mt-0.5">FOLIO #PR-{prestamo.id.toString().padStart(5, '0')}</p>
+            <p className="text-[10px] font-bold tracking-widest text-slate-400 mt-0.5">
+              FOLIO #PR-{prestamo.id?.toString().padStart(5, '0')}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-white rounded-xl transition-colors text-slate-400 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
 
-        {/* Contenido scrolleable responsivo */}
-        <div className="p-5 sm:p-7 space-y-5 overflow-y-auto flex-1">
+        {/* Cuerpo del modal con scroll interno */}
+        <div className="p-5 sm:p-7 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
           {/* Solicitante y Autorizador */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Solicitante</span>
               <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
                 <User size={14} className="text-blue-600 flex-shrink-0" />
-                <span className="truncate">{prestamo.solicitante_externo || prestamo.usuario?.nombre_completo}</span>
+                <span className="truncate">{prestamo.solicitante_externo || prestamo.usuarios?.nombre_completo || "N/A"}</span>
               </p>
             </div>
             <div className="space-y-1 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
@@ -84,11 +92,17 @@ export default function ModalDetallesPrestamo({ isOpen, onClose, prestamo }: Pro
           {/* Tiempos */}
           <div className="bg-blue-50/40 p-4 sm:p-5 rounded-2xl space-y-2.5 border border-blue-100/60">
             <div className="flex justify-between items-center text-xs font-bold gap-2">
-              <span className="text-slate-400 uppercase tracking-tight flex items-center gap-1 flex-shrink-0"><Clock size={12} className="text-blue-500"/> Salida</span>
-              <span className="text-slate-600 text-right">{new Date(prestamo.created_at).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}</span>
+              <span className="text-slate-400 uppercase tracking-tight flex items-center gap-1 flex-shrink-0">
+                <Clock size={12} className="text-blue-500"/> Salida
+              </span>
+              <span className="text-slate-600 text-right">
+                {new Date(prestamo.created_at).toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })}
+              </span>
             </div>
             <div className="flex justify-between items-center text-xs font-bold gap-2">
-              <span className="text-slate-400 uppercase tracking-tight flex items-center gap-1 flex-shrink-0"><Calendar size={12} className="text-blue-500"/> Retorno</span>
+              <span className="text-slate-400 uppercase tracking-tight flex items-center gap-1 flex-shrink-0">
+                <Calendar size={12} className="text-blue-500"/> Retorno
+              </span>
               <span className={`${prestamo.fecha_devolucion ? 'text-slate-600' : 'text-blue-600 italic'} text-right`}>
                 {prestamo.fecha_devolucion ? new Date(prestamo.fecha_devolucion).toLocaleDateString("es-MX", { dateStyle: "short" }) : 'Pendiente'}
               </span>
@@ -96,7 +110,7 @@ export default function ModalDetallesPrestamo({ isOpen, onClose, prestamo }: Pro
           </div>
         </div>
 
-        {/* Footer Adaptable */}
+        {/* Footer */}
         <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row gap-2.5">
           <button 
             onClick={onClose}

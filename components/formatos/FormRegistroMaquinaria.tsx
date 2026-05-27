@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/client";
 import { type FormProps } from "./PanelExpediente";
-import { Cog, X } from "lucide-react"; // Añadido X para el botón opcional de cerrar
+import { Cog, X } from "lucide-react";
 import {
   FormHeader, Field, FotoFormato, SaveButton, inputCls,
 } from "./FormSolicitudTrabajo";
@@ -44,9 +44,7 @@ export default function FormRegistroMaquinaria({ registro, trabajoId, onSaved, o
   }, [registro]);
 
   const toggleTipo = (tipo: string) => {
-    setTipos(prev =>
-      prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]
-    );
+    setTipos(prev => prev.includes(tipo) ? prev.filter(t => t !== tipo) : [...prev, tipo]);
   };
 
   const uploadFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,10 +66,7 @@ export default function FormRegistroMaquinaria({ registro, trabajoId, onSaved, o
     await supabase
       .from("registros_formato")
       .update({
-        datos_json: {
-          fecha, maquina, marca, modelo, serie, areaProduccion,
-          tipos, observaciones, efectuo, recibio, aprobo,
-        },
+        datos_json: { fecha, maquina, marca, modelo, serie, areaProduccion, tipos, observaciones, efectuo, recibio, aprobo },
         imagen_url: imagenUrl,
         completado: true,
         completado_por: user?.id ?? null,
@@ -85,154 +80,48 @@ export default function FormRegistroMaquinaria({ registro, trabajoId, onSaved, o
   const TIPOS_MANTENIMIENTO = ["Correctivo", "Preventivo", "Eléctrico", "Electrónico"];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 backdrop-blur-sm sm:items-center p-0 sm:p-4 transition-opacity">
-      
-      {/* Contenedor Principal del Modal */}
-      <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/40 backdrop-blur-sm p-0 sm:p-4 transition-opacity">
+      <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
         
-        {/* Barra de arrastre visual para dispositivos móviles */}
-        <div className="flex justify-center py-2 sm:hidden bg-slate-50 border-b border-slate-100">
-          <div className="w-12 h-1.5 bg-slate-300 rounded-full" />
-        </div>
-
-        {/* 1. Encabezado Fijo */}
-        <div className="relative p-5 sm:p-6 border-b border-slate-100 bg-white z-10 flex justify-between items-start">
+        {/* Encabezado */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white">
           <div className="flex-1 min-w-0">
-            <FormHeader
-              titulo="Registro de Maquinaria de Producción"
-              subtitulo="Formato 2 · Laboratorios de medicamentos y productos terminados"
-              Icon={Cog}
-              color="orange"
-              completado={registro?.completado}
-            />
+            <FormHeader titulo="Registro de Maquinaria" subtitulo="Formato 2 · Mantenimiento Industrial" Icon={Cog} color="orange" completado={registro?.completado} />
           </div>
-          {onClose && (
-            <button 
-              onClick={onClose}
-              className="ml-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-              type="button"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {onClose && <button onClick={onClose} className="p-2 ml-2 text-slate-400 hover:bg-slate-50 rounded-xl"><X size={20} /></button>}
         </div>
 
-        {/* 2. Cuerpo con Scroll Aislado e Intuitivo */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-5 sm:p-6 space-y-6 bg-slate-50/50 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
-          
-          {/* Sección: Fecha */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <Field label="Fecha">
-              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className={inputCls} />
-            </Field>
-          </div>
-
-          {/* Sección: Datos de la máquina */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Datos de la máquina
-            </p>
+        {/* Cuerpo */}
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-50/50">
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Datos de la máquina</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Máquina">
-                <input value={maquina} onChange={e => setMaquina(e.target.value)}
-                  placeholder="Ej. Fermentador, Tableteadora" className={inputCls} />
-              </Field>
-              <Field label="Marca">
-                <input value={marca} onChange={e => setMarca(e.target.value)}
-                  placeholder="Ej. Bosch" className={inputCls} />
-              </Field>
-              <Field label="Modelo">
-                <input value={modelo} onChange={e => setModelo(e.target.value)}
-                  placeholder="Número de modelo" className={inputCls} />
-              </Field>
-              <Field label="Número de serie">
-                <input value={serie} onChange={e => setSerie(e.target.value)}
-                  placeholder="Serie del fabricante" className={inputCls} />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Área de producción">
-                  <input value={areaProduccion} onChange={e => setAreaProduccion(e.target.value)}
-                    placeholder="Ej. Sala de tabletas, Cuarto estéril" className={inputCls} />
-                </Field>
-              </div>
+              <Field label="Máquina"><input value={maquina} onChange={e => setMaquina(e.target.value)} className={inputCls} /></Field>
+              <Field label="Marca"><input value={marca} onChange={e => setMarca(e.target.value)} className={inputCls} /></Field>
+              <Field label="Modelo"><input value={modelo} onChange={e => setModelo(e.target.value)} className={inputCls} /></Field>
+              <Field label="Serie"><input value={serie} onChange={e => setSerie(e.target.value)} className={inputCls} /></Field>
             </div>
           </div>
 
-          {/* Sección: Tipo de mantenimiento */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-              Tipo de mantenimiento
-            </p>
+          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-3">
+            <p className="text-[10px] font-bold text-slate-400 uppercase">Tipo de mantenimiento</p>
             <div className="grid grid-cols-2 gap-2">
               {TIPOS_MANTENIMIENTO.map(tipo => (
-                <label
-                  key={tipo}
-                  className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
-                    tipos.includes(tipo)
-                      ? "bg-orange-50 border-orange-200 text-orange-700 shadow-sm"
-                      : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={tipos.includes(tipo)}
-                    onChange={() => toggleTipo(tipo)}
-                    className="rounded accent-orange-600 w-4 h-4"
-                  />
+                <label key={tipo} className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer ${tipos.includes(tipo) ? "bg-orange-50 border-orange-200 text-orange-700" : "bg-slate-50 border-slate-200"}`}>
+                  <input type="checkbox" checked={tipos.includes(tipo)} onChange={() => toggleTipo(tipo)} className="accent-orange-600" />
                   <span className="text-sm font-semibold">{tipo}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Sección: Observaciones */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <Field label="Observaciones">
-              <textarea value={observaciones} onChange={e => setObservaciones(e.target.value)}
-                rows={3} placeholder="Observaciones del mantenimiento realizado..."
-                className={`${inputCls} resize-none`} />
-            </Field>
-          </div>
-
-          {/* Sección: Firmas de cierre */}
-          <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-100 shadow-sm">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">
-              Firmas de cierre
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Field label="Efectuó">
-                <input value={efectuo} onChange={e => setEfectuo(e.target.value)}
-                  placeholder="Nombre del técnico" className={inputCls} />
-              </Field>
-              <Field label="Recibió">
-                <input value={recibio} onChange={e => setRecibio(e.target.value)}
-                  placeholder="Nombre de quien recibe" className={inputCls} />
-              </Field>
-              <Field label="Aprobó">
-                <input value={aprobo} onChange={e => setAprobo(e.target.value)}
-                  placeholder="Nombre del supervisor" className={inputCls} />
-              </Field>
-            </div>
-          </div>
-
-          {/* Sección: Foto */}
-          <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-            <FotoFormato
-              imagenUrl={imagenUrl}
-              uploading={uploading}
-              onUpload={uploadFoto}
-              onDelete={() => setImagenUrl(null)}
-            />
-          </div>
+          <FotoFormato imagenUrl={imagenUrl} uploading={uploading} onUpload={uploadFoto} onDelete={() => setImagenUrl(null)} color="orange" />
         </div>
 
-        {/* 3. Footer Fijo */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-white z-10 flex justify-end shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-          <div className="w-full sm:w-auto min-w-[150px]">
-            <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} />
-          </div>
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+          <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="orange" />
         </div>
-
       </div>
     </div>
   );

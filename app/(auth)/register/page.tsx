@@ -66,11 +66,16 @@ export default function RegisterPage() {
       },
     });
 
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
+   if (authError) {
+  // Captura el error de correo duplicado y dale un formato amigable
+  if (authError.status === 422 || authError.message.toLowerCase().includes("already registered")) {
+    setError("Este correo electrónico ya se encuentra registrado. Intenta iniciar sesión.");
+  } else {
+    setError(authError.message);
+  }
+  setLoading(false);
+  return;
+}
 
     setSuccess("¡Registro exitoso! Redirigiendo al inicio de sesión...");
     

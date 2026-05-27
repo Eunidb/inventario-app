@@ -280,7 +280,7 @@ export default function ModalGestion({ isOpen, onClose, item, onSaved }: ModalGe
                   value={form.clave}
                   onChange={handleChange}
                   required
-                  placeholder="Ej. LAP-CORP-001"
+                  placeholder="Ej. MANT-001"
                   disabled={!!item} // La clave no cambia en edición
                   className={inputCls + " font-mono font-bold text-[#014ba0]"}
                   maxLength={50}

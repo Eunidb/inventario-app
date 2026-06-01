@@ -6,6 +6,7 @@
 "use client";
 
 import React from "react";
+
 import { AlertTriangle, Info, Trash2 } from "lucide-react";
 
 interface ModalConfirmarProps {

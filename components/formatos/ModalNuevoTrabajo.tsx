@@ -1,9 +1,10 @@
+"use client";
+
 /**
  * @file components/ModalNuevoTrabajo.tsx
  * @description Modal para creación y edición de expedientes con tipado estricto.
- */
 
-"use client";
+ */
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/client";
@@ -20,7 +21,7 @@ const inputCls =
 
 interface Props {
   trabajo: TrabajoExpediente | null;
-  onClose: () => void;
+  onClose: () => void; // <-- Correcto: Obligatorio desde su concepción
   onSaved: () => void;
 }
 
@@ -106,10 +107,14 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/40 backdrop-blur-sm sm:items-center p-0 sm:p-4">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative flex flex-col w-full max-w-xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800 animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 fade-in duration-200">
+      {/* Backdrop con z-0 para evitar interferencias de eventos clic con el contenedor de la tarjeta */}
+      <div className="absolute inset-0 z-0" onClick={onClose} />
+      
+      {/* Tarjeta del formulario con z-10 */}
+      <div className="relative z-10 flex flex-col w-full max-w-xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800 animate-in slide-in-from-bottom-10 sm:slide-in-from-bottom-0 fade-in duration-200">
         
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-3">
             <div className={`p-2.5 rounded-xl text-white ${isEdit ? "bg-amber-500" : "bg-blue-600"}`}>
               {isEdit ? <FolderEdit size={18} /> : <FolderOpen size={18} />}
@@ -119,9 +124,17 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
               <p className="text-[11px] text-slate-400 font-medium">{isEdit ? `Folio: ${trabajo?.folio ?? "#" + trabajo?.id}` : "Generación de nuevos formatos"}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-50 text-slate-400"><X size={18} /></button>
+          <button 
+            onClick={onClose} 
+            className="p-2 rounded-xl hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
+            type="button"
+            aria-label="Cerrar modal"
+          >
+            <X size={18} />
+          </button>
         </div>
 
+        {/* Cuerpo */}
         <div className="overflow-y-auto flex-1 p-5 sm:p-6 space-y-5 bg-slate-50/50">
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
             <Field label="Título del trabajo *">
@@ -150,9 +163,20 @@ export default function ModalNuevoTrabajo({ trabajo, onClose, onSaved }: Props) 
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-5 py-4 border-t border-slate-100 bg-white">
-          <button onClick={onClose} className="px-5 py-2.5 text-slate-500 font-bold text-sm rounded-xl hover:bg-slate-50">Cancelar</button>
-          <button onClick={handleSave} disabled={loading} className={`flex items-center gap-2 text-white px-6 py-2.5 rounded-xl font-bold text-sm ${isEdit ? "bg-amber-500" : "bg-blue-600"}`}>
+        {/* Footer */}
+        <div className="flex justify-end items-center gap-3 px-5 py-4 border-t border-slate-100 bg-white shrink-0">
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
+          <button 
+            onClick={handleSave} 
+            disabled={loading} 
+            className={`flex items-center gap-2 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-all disabled:opacity-60 ${isEdit ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"}`}
+          >
             {loading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             {loading ? "Guardando..." : "Guardar"}
           </button>
@@ -180,9 +204,9 @@ function FlagCheckbox({ checked, onChange, Icon, label, desc, color }: {
     rose: "bg-rose-50/60 text-rose-700 border-rose-200",
   };
   return (
-    <label className={`flex items-start gap-3.5 p-3 rounded-xl border cursor-pointer transition-all ${checked ? colorMap[color] : "bg-slate-50 border-slate-200"}`}>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-1" />
-      <Icon size={16} className="mt-1" />
+    <label className={`flex items-start gap-3.5 p-3 rounded-xl border cursor-pointer transition-all ${checked ? colorMap[color] : "bg-slate-50 border-slate-200 hover:bg-slate-100/50"}`}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="mt-1 accent-current" />
+      <Icon size={16} className="mt-1 shrink-0" />
       <div><p className="text-xs font-bold">{label}</p><p className="text-[10px] opacity-70">{desc}</p></div>
     </label>
   );

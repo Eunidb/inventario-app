@@ -1,7 +1,6 @@
 /**
  * @file app/prestamos/page.tsx
- * @description Gestión de préstamos: listado responsivo optimizado en tonos corporativos (#014ba0, #004091),
- * corrección de bug de filtrado-paginación, transiciones fluidas y vista móvil first de alto nivel.
+ * @description Gestión de préstamos: listado responsivo optimizado en tonos corporativos (#014ba0, 
  */
 "use client";
 

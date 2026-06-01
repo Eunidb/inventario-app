@@ -4,13 +4,6 @@
  * @file app/configuracion/page.tsx
  * @description Configuración del sistema: categorías, departamentos y gestión de usuarios.
  *
- * CORRECCIONES:
- * 1. ModalUsuario antes mostraba `null` cuando `item` era null (al crear),
- *    porque verificaba `!item` al inicio. Se separó en:
- *    - `ModalNuevoUsuario`: crea usuarios vía `supabase.auth.signUp()` (obligatorio
- *      para que Supabase Auth genere la sesión y dispare el trigger de la tabla usuarios).
- *    - `ModalUsuario`: solo edita rol y departamento de un usuario existente.
- * 2. El botón "Nuevo" en la pestaña usuarios ahora abre `ModalNuevoUsuario`.
  */
 
 import { useEffect, useState } from "react";

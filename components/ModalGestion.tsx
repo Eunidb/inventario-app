@@ -3,17 +3,6 @@
 /**
  * @file components/ModalGestion.tsx
  * @description Modal de alta y edición de artículos del inventario.
- *
- * SEGURIDAD APLICADA:
- * - Validación de imagen en tres capas: tamaño → MIME type → magic bytes.
- * - Sanitización de texto: trim + normalización de clave a mayúsculas/guiones.
- * - Stock nunca puede ser negativo (clamp en onChange y en el payload final).
- * - Se validan clave y nombre antes de enviar a Supabase.
- *
- * CAMPOS COMPLETOS:
- * - Clave, Nombre, Descripción, Marca, Modelo, Número de Serie
- * - Stock Total, Stock Disponible, Stock Mínimo, Unidad de Medida
- * - Ubicación, Estado, Categoría, Departamento, Imagen
  */
 
 import { useState, useEffect } from "react";

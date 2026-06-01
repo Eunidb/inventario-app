@@ -2,12 +2,6 @@
 
 /**
  * @file components/formatos/FormSolicitudTrabajo.tsx
- *
- * CORRECCIONES:
- * 1. El backdrop (fondo oscuro) ahora cierra el modal al hacer clic,
- *    usando un div absoluto detrás del contenido.
- * 2. El botón X siempre se muestra cuando se provee `onClose`.
- * 3. Se exportan los helpers (FormHeader, Field, etc.) sin cambios en estilos.
  */
 
 import { useState, useEffect } from "react";
@@ -19,9 +13,10 @@ import {
 
 type ColorKey = "blue" | "purple" | "orange" | "teal" | "rose";
 
+// Forzamos a que onClose sea obligatorio para unificar la robustez de la app
 export default function FormSolicitudTrabajo({
   registro, trabajoId, onSaved, onClose,
-}: FormProps & { onClose?: () => void }) {
+}: FormProps & { onClose: () => void }) { // <-- Removido el signo "?" para consistencia estructural
   const supabase = createClient();
 
   const [area,        setArea]        = useState("");
@@ -75,7 +70,7 @@ export default function FormSolicitudTrabajo({
   return (
     // Wrapper de modal a pantalla completa
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center p-0 sm:p-4">
-      {/* Backdrop: cierra el modal al hacer clic si onClose está disponible */}
+      {/* Backdrop: cierra el modal de forma segura al hacer clic fuera */}
       <div
         className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
         onClick={onClose}
@@ -100,17 +95,15 @@ export default function FormSolicitudTrabajo({
               completado={registro?.completado}
             />
           </div>
-          {/* X siempre visible cuando se provee onClose */}
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="ml-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
-              type="button"
-              aria-label="Cerrar"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          {/* Botón X — Siempre visible y renderizado */}
+          <button
+            onClick={onClose}
+            className="ml-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+            type="button"
+            aria-label="Cerrar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Cuerpo scrollable */}
@@ -154,8 +147,16 @@ export default function FormSolicitudTrabajo({
           </div>
         </div>
 
-        {/* Footer con botón guardar */}
-        <div className="p-4 sm:p-5 border-t border-slate-100 bg-white z-10 flex justify-end">
+        {/* Footer con botones de control */}
+        <div className="p-4 sm:p-5 border-t border-slate-100 bg-white z-10 flex justify-end items-center gap-3">
+          {/* Botón Cancelar Explícito */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
           <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="blue" />
         </div>
       </div>

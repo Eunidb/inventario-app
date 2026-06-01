@@ -3,11 +3,6 @@
 /**
  * @file components/formatos/FormReporteServicio.tsx
  *
- * CORRECCIONES:
- * 1. Se añade div de backdrop absoluto con onClick={onClose} para cerrar
- *    al hacer clic fuera del formulario.
- * 2. El botón X siempre aparece cuando se provee onClose.
- * 3. z-index elevado a z-[60] para quedar sobre PanelExpediente (z-50).
  */
 
 import { useState, useEffect } from "react";
@@ -18,7 +13,7 @@ import { FormHeader, Field, FotoFormato, SaveButton, inputCls } from "./FormSoli
 
 export default function FormReporteServicio({
   registro, trabajoId, onSaved, onClose,
-}: FormProps & { onClose?: () => void }) {
+}: FormProps & { onClose: () => void }) { // <-- Modificado: Ahora es estrictamente obligatorio
   const supabase = createClient();
 
   const [departamento,        setDepartamento]        = useState("");
@@ -104,10 +99,11 @@ export default function FormReporteServicio({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop con cierre al clic */}
-      <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+      {/* Backdrop con z-0 para evitar solapamientos de clics con el panel */}
+      <div className="absolute inset-0 z-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
+      {/* Tarjeta del formulario con z-10 */}
+      <div className="relative z-10 flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-white shrink-0">
@@ -120,27 +116,30 @@ export default function FormReporteServicio({
               completado={registro?.completado}
             />
           </div>
-          {onClose && (
-            <button onClick={onClose} className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" aria-label="Cerrar">
-              <X size={20} />
-            </button>
-          )}
+          <button 
+            onClick={onClose} 
+            className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" 
+            type="button"
+            aria-label="Cerrar formulario"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Cuerpo */}
+        {/* Cuerpo Scrollable */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 bg-slate-50/50">
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Información de la Solicitud</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Información de la Solicitud</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Departamento"><input value={departamento}   onChange={e => setDepartamento(e.target.value)}   className={inputCls} /></Field>
+              <Field label="Departamento"><input value={departamento} onChange={e => setDepartamento(e.target.value)} className={inputCls} /></Field>
               <Field label="Fecha de solicitud"><input type="date" value={fechaSolicitud} onChange={e => setFechaSolicitud(e.target.value)} className={inputCls} /></Field>
-              <Field label="Quien reporta"><input value={quienReporta}  onChange={e => setQuienReporta(e.target.value)}  className={inputCls} /></Field>
-              <Field label="Quien recibe"><input value={quienRecibe}   onChange={e => setQuienRecibe(e.target.value)}   className={inputCls} /></Field>
+              <Field label="Quien reporta"><input value={quienReporta} onChange={e => setQuienReporta(e.target.value)} className={inputCls} /></Field>
+              <Field label="Quien recibe"><input value={quienRecibe} onChange={e => setQuienRecibe(e.target.value)} className={inputCls} /></Field>
             </div>
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Control y Categorización</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Control y Categorización</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Prioridad">
                 <select value={prioridad} onChange={e => setPrioridad(e.target.value)} className={inputCls}>
@@ -157,7 +156,7 @@ export default function FormReporteServicio({
           </div>
 
           <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm space-y-4">
-            <p className="text-[10px] font-bold text-slate-400 uppercase">Bitácora de Intervención</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bitácora de Intervención</p>
             <Field label="Descripción de la falla">
               <textarea value={descripcionFalla} onChange={e => setDescripcionFalla(e.target.value)} rows={2} className={`${inputCls} resize-none`} />
             </Field>
@@ -172,7 +171,14 @@ export default function FormReporteServicio({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end">
+        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
           <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="purple" />
         </div>
       </div>

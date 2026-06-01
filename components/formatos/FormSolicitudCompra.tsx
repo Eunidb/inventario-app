@@ -2,11 +2,6 @@
 
 /**
  * @file components/formatos/FormSolicitudCompra.tsx
- *
- * CORRECCIONES:
- * 1. z-[60] sobre PanelExpediente.
- * 2. Backdrop con onClick={onClose}.
- * 3. Botón X siempre visible con onClose.
  */
 
 import { useState, useEffect } from "react";
@@ -22,9 +17,13 @@ interface ArticuloCompra {
   justificacion: string;
 }
 
+// Convertimos onClose en un parámetro requerido para evitar fallos silenciosos del componente padre
 export default function FormSolicitudCompra({
-  registro, trabajoId, onSaved, onClose,
-}: FormProps & { onClose?: () => void }) {
+  registro, 
+  trabajoId, 
+  onSaved, 
+  onClose,
+}: FormProps & { onClose: () => void }) { // <-- Removido el signo "?" para consistencia estructural
   const supabase = createClient();
 
   const [fecha,         setFecha]         = useState(new Date().toISOString().split("T")[0]);
@@ -92,7 +91,7 @@ export default function FormSolicitudCompra({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop — cierra al clic fuera */}
+      {/* Backdrop — Cierra el modal de forma segura al hacer clic fuera de la tarjeta */}
       <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
@@ -108,11 +107,14 @@ export default function FormSolicitudCompra({
               completado={registro?.completado}
             />
           </div>
-          {onClose && (
-            <button onClick={onClose} className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" aria-label="Cerrar">
-              <X size={20} />
-            </button>
-          )}
+          {/* Botón X — Siempre visible y renderizado */}
+          <button 
+            onClick={onClose} 
+            className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" 
+            aria-label="Cerrar"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Cuerpo */}
@@ -200,7 +202,15 @@ export default function FormSolicitudCompra({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end">
+        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end items-center gap-3">
+          {/* Botón Cancelar Explícito */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
           <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="teal" />
         </div>
       </div>

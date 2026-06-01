@@ -2,11 +2,7 @@
 
 /**
  * @file components/formatos/FormRegistroMaquinaria.tsx
- *
- * CORRECCIONES:
- * 1. z-[60] para quedar sobre PanelExpediente (z-50).
- * 2. Backdrop absoluto con onClick={onClose} — cierra al hacer clic fuera.
- * 3. Botón X siempre visible cuando se provee onClose.
+
  */
 
 import { useState, useEffect } from "react";
@@ -15,25 +11,29 @@ import { type FormProps } from "./PanelExpediente";
 import { Cog, X } from "lucide-react";
 import { FormHeader, Field, FotoFormato, SaveButton, inputCls } from "./FormSolicitudTrabajo";
 
+// Aseguramos que onClose no sea opcional en el tipado interno para evitar fallos de inyección
 export default function FormRegistroMaquinaria({
-  registro, trabajoId, onSaved, onClose,
-}: FormProps & { onClose?: () => void }) {
+  registro, 
+  trabajoId, 
+  onSaved, 
+  onClose,
+}: FormProps & { onClose: () => void }) { // <-- Se quita el signo '?' para obligar su uso
   const supabase = createClient();
 
-  const [fecha,         setFecha]         = useState(new Date().toISOString().split("T")[0]);
-  const [maquina,       setMaquina]       = useState("");
-  const [marca,         setMarca]         = useState("");
-  const [modelo,        setModelo]        = useState("");
-  const [serie,         setSerie]         = useState("");
-  const [areaProduccion,setAreaProduccion]= useState("");
-  const [tipos,         setTipos]         = useState<string[]>([]);
-  const [observaciones, setObservaciones] = useState("");
-  const [efectuo,       setEfectuo]       = useState("");
-  const [recibio,       setRecibio]       = useState("");
-  const [aprobo,        setAprobo]        = useState("");
-  const [imagenUrl,     setImagenUrl]     = useState<string | null>(null);
-  const [uploading,     setUploading]     = useState(false);
-  const [loading,       setLoading]       = useState(false);
+  const [fecha,           setFecha]         = useState(new Date().toISOString().split("T")[0]);
+  const [maquina,         setMaquina]       = useState("");
+  const [marca,           setMarca]         = useState("");
+  const [modelo,          setModelo]        = useState("");
+  const [serie,           setSerie]         = useState("");
+  const [areaProduccion,  setAreaProduccion]= useState("");
+  const [tipos,           setTipos]         = useState<string[]>([]);
+  const [observaciones,   setObservaciones] = useState("");
+  const [efectuo,         setEfectuo]       = useState("");
+  const [recibio,         setRecibio]       = useState("");
+  const [aprobo,          setAprobo]        = useState("");
+  const [imagenUrl,       setImagenUrl]     = useState<string | null>(null);
+  const [uploading,       setUploading]     = useState(false);
+  const [loading,         setLoading]       = useState(false);
 
   useEffect(() => {
     const d = registro?.datos_json ?? {};
@@ -85,7 +85,7 @@ export default function FormRegistroMaquinaria({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop — cierra al clic */}
+      {/* Backdrop — cierra de forma segura al hacer clic fuera */}
       <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative flex flex-col w-full max-w-3xl bg-white h-[92vh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-slate-800">
@@ -101,11 +101,14 @@ export default function FormRegistroMaquinaria({
               completado={registro?.completado}
             />
           </div>
-          {onClose && (
-            <button onClick={onClose} className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" aria-label="Cerrar">
-              <X size={20} />
-            </button>
-          )}
+          {/* Botón X de cierre — Ya no requiere validación condicional */}
+          <button 
+            onClick={onClose} 
+            className="p-2 ml-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50 transition-colors" 
+            aria-label="Cerrar"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         {/* Cuerpo */}
@@ -168,7 +171,15 @@ export default function FormRegistroMaquinaria({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end">
+        <div className="p-4 border-t border-slate-100 bg-white shrink-0 flex justify-end items-center gap-3">
+          {/* Botón Cancelar Explícito */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+          >
+            Cancelar
+          </button>
           <SaveButton loading={loading} onSave={handleSave} completado={registro?.completado} color="orange" />
         </div>
       </div>

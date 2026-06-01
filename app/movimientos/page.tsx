@@ -1,12 +1,6 @@
 /**
  * @file app/movimientos/page.tsx
  * @description Registro de movimientos manuales: entradas, salidas, traslados y ajustes.
- *
- * CORRECCIONES:
- * - El modal "Editar" ahora guarda realmente las observaciones en Supabase.
- * - La búsqueda sanitiza el input antes de enviarlo al query.
- * - El modal "Ver" muestra todos los campos del registro (tipo, cantidad,
- *   stock antes/después, destino, observaciones, usuario, fecha).
  */
 "use client";
 

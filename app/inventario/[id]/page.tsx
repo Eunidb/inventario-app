@@ -1,14 +1,6 @@
 /**
  * @file app/inventario/[id]/page.tsx
  * @description Formulario de alta y edición de artículos del inventario con diseño formal y restrictivo por rol.
- *
- * CAMBIOS APLICADOS:
- * - Eliminados emojis del selector de estado (reemplazados por indicadores CSS y Lucide Icons)[cite: 285].
- * - Consistencia Cromática Fiel utilizando la paleta #014ba0 y #004091.
- * - Microinteracciones fluidas con transiciones controladas de 300ms.
- * - Verificación en tiempo real del rol del usuario desde la base de datos (bloqueo preventivo si es "lector").
- * - Completada la interfaz para todos los campos del formData (Descripción, No. de Serie, Unidad y Departamento).
- * - Sanitización y validación estricta de entradas pre-flight antes de enviar a Supabase.
  */
 
 "use client";

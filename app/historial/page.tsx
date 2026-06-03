@@ -192,27 +192,28 @@ export default function HistorialPage() {
   };
 
   const handleDeleteRegistro = async () => {
-    if (!selectedMovimiento) return;
-    setIsActionLoading(true);
-    const supabase = createClient();
+  if (!selectedMovimiento) return;
+  setIsActionLoading(true);
+ const supabase = createClient();
+  try {
+    const { error } = await supabase
+      .from("historial_inventario")
+      .delete()
+      .eq("id", selectedMovimiento.id);
 
-    try {
-      const { error } = await supabase
-        .from("historial_inventario")
-        .delete()
-        .eq("id", selectedMovimiento.id);
+    if (error) throw error;
 
-      if (error) throw error;
-
-      // Actualiza la interfaz removiendo el elemento borrado
-      setHistorial((prev) => prev.filter((m) => m.id !== selectedMovimiento.id));
-      closeModal();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
+    // Actualiza la UI
+    setHistorial((prev) => prev.filter((m) => m.id !== selectedMovimiento.id));
+    closeModal();
+    // Opcional: mostrar un toast de éxito aquí
+  } catch (error) {
+    console.error("Error al eliminar:", error);
+    alert("No se pudo eliminar el registro. Verifica que no tenga dependencias.");
+  } finally {
+    setIsActionLoading(false);
+  }
+}
 
   const exportarCSV = () => {
     const headers = [

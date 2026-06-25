@@ -45,7 +45,7 @@ const NAV_SECTIONS = [
   {
     label: "Mantenimiento",
     items: [
-      { href: "/formatos", icon: ClipboardList, label: "Formatos de Trabajo" },
+      { href: "/formatos", icon: ClipboardList, label: "Ordenes de trabajo" },
     ],
   },
   {
